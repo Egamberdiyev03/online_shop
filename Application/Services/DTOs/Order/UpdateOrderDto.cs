@@ -1,13 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Domain.Entities
+namespace Application.Services.DTOs.Order
 {
-    public class Order
+    public class UpdateOrderDto
     {
         public int Id { get; set; }
         public int CustomerId { get; set; }
@@ -15,9 +14,5 @@ namespace Domain.Entities
         public DateTime UpdatedAt { get; set; }
         public double TotalPrice { get; set; }
         public string Status { get; set; }
-
-        public List<OrderItem> OrderItems { get; set; } = new();
-        public Customer Customer { get; set; }
-        public Payment Payment { get; set; }
     }
 }

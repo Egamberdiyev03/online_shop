@@ -10,10 +10,7 @@ namespace DataAccess.Database
 {
     public class AppDbContext : Microsoft.EntityFrameworkCore.DbContext
     {
-        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
-        {
-           
-        }
+        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
         public DbSet<Customer> Customers { get; set; }
         public DbSet<Order> Orders { get; set; }
@@ -25,8 +22,5 @@ namespace DataAccess.Database
         public DbSet<Company_filial> Company_filials { get; set; }
         public DbSet<Cart> Carts { get; set; }
         public DbSet<Payment> Payments { get; set; }
-
-
-
     }
 }
