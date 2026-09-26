@@ -59,7 +59,7 @@ namespace Application.Services
                 totalPrice += item.Product.Price * item.Quantity;
             }
 
-            var branch = _branchRepository.GetByIdAsync(branchId);
+            var branch = await _branchRepository.GetByIdAsync(branchId);
 
             if (branch == null)
                 return new($"Branch topilmadi", HttpStatusCode.BadRequest);
@@ -191,7 +191,7 @@ namespace Application.Services
                  .ToListAsync();
 
             if (orders == null || !orders.Any())
-                return new($"Bu mijozga tegishli buyurtmalar topilmadi", HttpStatusCode.NotFound);
+                return new($"Bu vaqt oraligida buyurtmalar topilmadi", HttpStatusCode.NotFound);
 
             return new(_mapper.Map<List<OrderDto>>(orders));
         }

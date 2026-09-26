@@ -30,7 +30,7 @@ namespace Application.Services
 
         public async Task<ResponseModel<CommentDto>> CreateComment (CreateCommentDto dto)
         {
-            var product = await  _commentRepository.GetByIdAsync(dto.ProductId);
+            var product = await  _productRepository.GetByIdAsync(dto.ProductId);
 
             if (product == null)
                 return new($"Product mavjud emas", HttpStatusCode.BadRequest);
@@ -139,7 +139,7 @@ namespace Application.Services
                 .Select(c => c.StarRating);
 
             if (!await productRatings.AnyAsync())
-                return new(0);
+                return new("Bu productga tegishli comment topilmadi",HttpStatusCode.NotFound);
 
             double average = await productRatings.AverageAsync(r => r);
            

@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace OnlineShop.Controllers
 {
         [ApiController]
-        [Route("controller")]
+        [Route("[controller]")]
     public class ProductController : ControllerBase
     {
         private readonly IProductService _service;

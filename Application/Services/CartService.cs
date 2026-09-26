@@ -180,6 +180,7 @@ namespace Application.Services
                 return new($"Bu customer savatida {productId} idli mahsulot yuq",HttpStatusCode.NotFound);
 
             cart.CartItems.Remove(item);
+           await _cartRepository.SaveChangesAsync();
                 return new(true);
         }
 

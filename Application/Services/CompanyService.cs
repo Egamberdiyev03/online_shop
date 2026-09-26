@@ -87,12 +87,17 @@ namespace Application.Services
 
         public async Task<ResponseModel<List<CompanyBranchDto>>> GetBranchesByCompanyId(int companyId)
         {
+            var company = await _companyRepository.GetByIdAsync(companyId);
+
+            if (company == null)
+                return new("Bu company mavjud emas", HttpStatusCode.BadRequest);
+
             var companyBranches = await _companyBranchRepository.GetAsQueryable()
                 .Where(d=>d.CompanyId==companyId)
                 .ToListAsync();
 
-            if (companyBranches == null || !companyBranches.Any())
-                return new($"bu company topilmadi yoki uning branchlari mavjud emas", HttpStatusCode.NotFound);
+            if (!companyBranches.Any())
+                return new($"bu company branchlari mavjud emas", HttpStatusCode.NotFound);
 
             return new(_mapper.Map<List<CompanyBranchDto>>(companyBranches));  
            

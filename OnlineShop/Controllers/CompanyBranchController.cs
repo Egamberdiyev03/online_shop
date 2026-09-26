@@ -1,4 +1,5 @@
 ﻿using Application.DTOs.CompanyBranch;
+using Application.DTOs.Product;
 using Application.Extentions;
 using Application.Interfaces;
 using Application.Services;
@@ -48,6 +49,13 @@ namespace OnlineShop.Controllers
         {
             return await _service.DeleteCompanyBranch(id);
         }
-      
+
+        [HttpGet("GetCompanyBranchAllProduct")]
+        public async Task<List<ProductDto>> GetCompanyBranchAllProduct(int companybranchid)
+        {
+           return await _service.GetCompanyBranchAllProduct(companybranchid);
+        }
+
+
     } 
 }
