@@ -17,9 +17,9 @@ namespace Domain.Entities
         public DateTime CreatedAt { get; set; }
 
 
-        public List<Order> Orders { get; set; } = new();
+        public List<Order> Orders { get; set; } 
         public Cart Cart { get; set; }  
-        public List<Customer> Customers { get; set; }
+        public List<Comment> Comments { get; set; }
 
     }
 }

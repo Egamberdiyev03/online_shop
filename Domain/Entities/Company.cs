@@ -15,6 +15,6 @@ namespace Domain.Entities
         public string Inn { get; set; }
 
 
-        public List<Company_filial> Company_filials { get; set; } = new();
+        public List<CompanyBranch> CompanyBranches { get; set; } = new();
     }
 }

@@ -14,7 +14,10 @@ namespace Domain.Entities
         public int ProductId { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set;}
-        public  bool IsDeleted { get; set; }
+      //  public  bool IsActive { get; set; }
+        public int StarRating { get; set; } = 0;
+
+        //admin id
 
         public Customer Customer { get; set; }
         public Product Product { get; set; }

@@ -19,8 +19,9 @@ namespace DataAccess.Database
         public DbSet<OrderItem> OrderItems { get; set; }
         public DbSet<Comment> Comments { get; set; }
         public DbSet<Company> Companies { get; set; }
-        public DbSet<Company_filial> Company_filials { get; set; }
+        public DbSet<CompanyBranch> CompanyBranches { get; set; }
         public DbSet<Cart> Carts { get; set; }
+        public DbSet<CartItem> CartItems { get; set; }
         public DbSet<Payment> Payments { get; set; }
     }
 }

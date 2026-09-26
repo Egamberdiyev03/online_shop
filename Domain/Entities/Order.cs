@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Domain.Enums;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.PortableExecutable;
@@ -11,13 +12,17 @@ namespace Domain.Entities
     {
         public int Id { get; set; }
         public int CustomerId { get; set; }
+        public int CompanyBranchId { get; set; }
+
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
-        public double TotalPrice { get; set; }
-        public string Status { get; set; }
+        public int ProductCount { get; set; }
+        public decimal TotalPrice { get; set; }
+        public OrderStatus Status { get; set; }
 
         public List<OrderItem> OrderItems { get; set; } = new();
         public Customer Customer { get; set; }
         public Payment Payment { get; set; }
+        public CompanyBranch CompanyBranch { get; set; }
     }
 }

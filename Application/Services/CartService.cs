@@ -1,0 +1,214 @@
+﻿using Application.DTOs.Cart;
+using Application.Extentions;
+using Application.Interfaces;
+using DataAccess.Database;
+using DataAccess.Repositories;
+using Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+using System.Net;
+using System.Reflection.Metadata.Ecma335;
+
+namespace Application.Services
+{
+    public class CartService : ICartService
+    {
+        private readonly IRepository<Cart> _cartRepository;
+        private readonly IRepository<Product> _prooductRepository;
+        private readonly IRepository<CartItem> _cartItemRepository;
+
+        public CartService
+            (
+            IRepository<Cart> cartRepository,
+            IRepository<Product> productRepository,
+            IRepository<CartItem> cartItemRepository)
+        {
+            _cartRepository = cartRepository;
+            _cartItemRepository = cartItemRepository;
+            _prooductRepository = productRepository;
+        }
+        public async Task<CartDto> CreateCartAsync(CreateCartDto cart)
+        {
+            var cartEntity = new Cart
+            {
+                CustomerId = cart.CustomerId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _cartRepository.AddAsync(cartEntity);
+            await _cartRepository.SaveChangesAsync();
+
+            return new CartDto
+            {
+                Id=cartEntity.Id,
+                CustomerId = cartEntity.CustomerId,
+                CreatedAt = cartEntity.CreatedAt
+            };
+        }
+
+        public async Task<ResponseModel<List<CartDto>>> GetAllCartsAsync()
+        {
+            var carts = await _cartRepository.GetAsQueryable()
+            .Select(c => new CartDto
+            {
+                Id = c.Id,
+                CustomerId = c.CustomerId,
+                CreatedAt = c.CreatedAt
+            }).ToListAsync();
+
+            return new(carts);
+        }
+
+        public async Task<ResponseModel<CartDto>> GetCartByIdAsync(int id)
+        {
+            var cart = await _cartRepository.GetByIdAsync(id);
+            if (cart == null)
+                return new($"Cart topilmadi",HttpStatusCode.NotFound);
+
+            return new(new CartDto
+            {
+                Id = cart.Id,
+                CustomerId = cart.CustomerId,
+                CreatedAt = cart.CreatedAt
+            });
+        }
+
+        public async Task<bool> DeleteCartAsync(int id)
+        {
+            var result = await _cartRepository.DeleteAsync(id);
+            if (result)
+                await _cartRepository.SaveChangesAsync();
+            
+            return result;
+        }
+
+        public async Task<ResponseModel<bool>> AddItemToCartAsync(int customerId, int productId, int quantity)
+        {
+            var cart = await _cartRepository.GetAsQueryable().FirstOrDefaultAsync(a => a.CustomerId == customerId);
+            if(cart == null)
+            {
+               Cart newCart= new Cart
+               {
+                   CustomerId = customerId,
+                   CreatedAt = DateTime.UtcNow
+               };
+                await  _cartRepository.AddAsync(newCart);
+                await _cartRepository.SaveChangesAsync();
+                cart = newCart;
+            };
+
+            var product = await _prooductRepository.GetByIdAsync(productId);
+
+            if (product == null)
+                 return new($"Product {productId} topilmadi",HttpStatusCode.NotFound);
+
+            var currentCartItem = await _cartItemRepository.GetAsQueryable()
+                .FirstOrDefaultAsync(s => s.CartId == cart.Id && s.ProductId == productId);
+
+            var totalRequested = quantity + (currentCartItem?.Quantity ?? 0);
+
+            if (product.Quantity < totalRequested )
+                 return new($"Omborda yetarli mahsulot yo'q. Mavjud: {product.Quantity} dona, " +
+                     $"so'ralgan: {quantity} dona.",HttpStatusCode.BadRequest);
+
+            if(currentCartItem == null)
+            {
+                var cartitem = new CartItem
+                {
+                    CartId = cart.Id,
+                    ProductId = productId,
+                    Quantity = quantity
+                };
+
+                await _cartItemRepository.AddAsync(cartitem);
+            }
+            else
+            {
+                currentCartItem.Quantity += quantity;
+            }
+
+            await _cartItemRepository.SaveChangesAsync();
+                return new(true);
+
+         //  return new(false);
+        }
+
+        public async Task<bool> ClearCartAsync(int customerId)
+        {
+            var cart = await _cartRepository.GetAsQueryable()
+                .Include(c => c.CartItems)
+                .FirstOrDefaultAsync(s=>s.CustomerId==customerId);
+
+            if(cart == null) return false;
+
+            foreach (var item in cart.CartItems)
+            {
+                await _cartItemRepository.DeleteAsync(item.Id);
+            }
+
+            await _cartItemRepository.SaveChangesAsync();
+
+            return true; 
+        }
+
+        public async Task<ResponseModel<CartDto>> GetCartByCustomerIdAsync(int customerId)
+        {
+            var cart = await _cartRepository.GetAsQueryable().FirstOrDefaultAsync(s => s.CustomerId == customerId);
+            if (cart == null)
+                 return new($"Customer {customerId} uchun cart topilmadi",HttpStatusCode.NotFound);
+
+            return new(new CartDto  
+            {
+                Id = cart.Id,
+                CustomerId = customerId,
+                CreatedAt = cart.CreatedAt
+            });
+        }
+
+        public async Task<ResponseModel<bool>> RemoveItemFromCartAsync(int customerId, int productId)
+        {
+           
+           var cart =await _cartRepository.GetAsQueryable()
+                .Include(s=>s.CartItems)
+                .FirstOrDefaultAsync(c=>c.CustomerId == customerId);
+
+            if (cart == null)
+                return new("Cart topilmadi",HttpStatusCode.NotFound);
+
+            var item = cart.CartItems.FirstOrDefault(c=>c.ProductId==productId);
+
+            if (item == null) 
+                return new($"Bu customer savatida {productId} idli mahsulot yuq",HttpStatusCode.NotFound);
+
+            cart.CartItems.Remove(item);
+                return new(true);
+        }
+
+        public async Task<ResponseModel<bool>> UpdateItemQuantityAsync(int customerId, int productId, int quantity)
+        {
+            var cart = await _cartRepository
+                .GetAsQueryable()
+                .Include(s=>s.CartItems)
+                .FirstOrDefaultAsync(c=>c.CustomerId== customerId);
+
+            if (cart == null || !cart.CartItems.Any()) 
+                return new($"Customer {customerId} uchun cart topilmadi",HttpStatusCode.BadRequest);
+
+            var item = cart.CartItems.FirstOrDefault( c=>c.ProductId==productId);
+
+            if (item == null)
+                return new($"Savatda bu mahsulot mavjud emas", HttpStatusCode.BadRequest);
+
+            var product = await _prooductRepository.GetByIdAsync(productId);
+
+            if (product.Quantity < quantity)
+               return  new($"Omborda yetarli mahsulot yo'q. Mavjud: {product.Quantity} dona, so'ralgan: {quantity} dona.", HttpStatusCode.BadRequest);
+
+            item.Quantity = quantity;
+          
+            await _cartRepository.SaveChangesAsync();
+
+            return new(true);   
+        }
+
+    }
+}

@@ -3,20 +3,24 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Application.Services.DTOs.Cart;    
+using Application.DTOs.Cart;
+using Application.Extentions;
+using DataAccess.Repositories;
 
 namespace Application.Interfaces
 {
-    public interface ICartService   
+    public interface ICartService 
     {
-        Task<IEnumerable<CartDto>> GetAllCartsAsync();
-        Task<CartDto> GetCartByIdAsync(int id);
-        Task<CreateCartDto> CreateCartAsync(CartDto cartDto);
-        Task DeleteCartAsync(int id);
-        Task<CartDto> GetCartByCustomerIdAsync(int customerId);
-        Task<bool> AddItemToCartAsync(int customerId, int productId, int quantity);
-        Task<bool> UpdateItemQuantityAsync(int customerId, int productId, int quantity);
-        Task<bool> RemoveItemFromCartAsync(int customerId, int productId);
+        Task<ResponseModel<List<CartDto>>> GetAllCartsAsync();
+        Task<ResponseModel<CartDto>> GetCartByIdAsync(int id);
+        Task<CartDto> CreateCartAsync(CreateCartDto cartDto);
+        Task<bool> DeleteCartAsync(int id);
+
+
+        Task<ResponseModel<CartDto>> GetCartByCustomerIdAsync(int customerId);
+        Task<ResponseModel<bool>> AddItemToCartAsync(int customerId, int productId, int quantity);
+        Task<ResponseModel<bool>> UpdateItemQuantityAsync(int customerId, int productId, int quantity);
+        Task<ResponseModel<bool>> RemoveItemFromCartAsync(int customerId, int productId);
         Task<bool> ClearCartAsync(int customerId);
     }
 }
