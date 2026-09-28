@@ -18,7 +18,7 @@ namespace OnlineShop.Controllers
         }
 
         [HttpPost("Create")]
-        public async Task<CartDto> CreateCart (CreateCartDto dto)
+        public async Task<ResponseModel<CartDto>> CreateCart (CreateCartDto dto)
         {
           return await  _cartService.CreateCartAsync(dto);
         }

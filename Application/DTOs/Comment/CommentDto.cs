@@ -9,9 +9,9 @@ namespace Application.DTOs.Comment
     public  class CommentDto
     {
         public int Id { get; set; }
-        public string Content { get; set; }
+        public string? Content { get; set; }
         public int CustomerId { get; set; }
-        public string CustomerName { get; set; }
+        public string? CustomerName { get; set; }
         public int ProductId { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }

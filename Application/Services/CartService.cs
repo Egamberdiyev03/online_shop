@@ -26,8 +26,21 @@ namespace Application.Services
             _cartItemRepository = cartItemRepository;
             _prooductRepository = productRepository;
         }
-        public async Task<CartDto> CreateCartAsync(CreateCartDto cart)
+        public async Task<ResponseModel<CartDto>> CreateCartAsync(CreateCartDto cart)
         {
+            var existingCart = await _cartRepository.GetAsQueryable()
+                .FirstOrDefaultAsync(d => d.CustomerId == cart.CustomerId);
+
+            if(existingCart !=null)
+            {
+                return new(new CartDto
+                {
+                    Id = existingCart.Id,
+                    CustomerId = existingCart.CustomerId,
+                    CreatedAt = existingCart.CreatedAt
+                });
+            }
+
             var cartEntity = new Cart
             {
                 CustomerId = cart.CustomerId,
@@ -37,12 +50,12 @@ namespace Application.Services
             await _cartRepository.AddAsync(cartEntity);
             await _cartRepository.SaveChangesAsync();
 
-            return new CartDto
+            return new(new CartDto
             {
                 Id=cartEntity.Id,
                 CustomerId = cartEntity.CustomerId,
                 CreatedAt = cartEntity.CreatedAt
-            };
+            });
         }
 
         public async Task<ResponseModel<List<CartDto>>> GetAllCartsAsync()
@@ -152,7 +165,10 @@ namespace Application.Services
 
         public async Task<ResponseModel<CartDto>> GetCartByCustomerIdAsync(int customerId)
         {
-            var cart = await _cartRepository.GetAsQueryable().FirstOrDefaultAsync(s => s.CustomerId == customerId);
+            var cart = await _cartRepository.GetAsQueryable()
+                .Include(s=>s.CartItems)
+                .ThenInclude(d=>d.Product)
+                .FirstOrDefaultAsync(s => s.CustomerId == customerId);
             if (cart == null)
                  return new($"Customer {customerId} uchun cart topilmadi",HttpStatusCode.NotFound);
 
@@ -160,7 +176,16 @@ namespace Application.Services
             {
                 Id = cart.Id,
                 CustomerId = customerId,
-                CreatedAt = cart.CreatedAt
+                CreatedAt = cart.CreatedAt,
+                CartItems= cart.CartItems.Select( c=> new CartItemDto
+                {
+                    Id=c.Id,
+                    CartId=c.CartId,
+                    ProductId=c.ProductId,
+                    Quantity=c.Quantity,
+                    UnitPrice=c.Product.Price
+                }).ToList(),
+                TotalPrice=cart.CartItems.Sum(i=>i.Product.Price*i.Quantity)
             });
         }
 

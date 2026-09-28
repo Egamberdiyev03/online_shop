@@ -43,7 +43,7 @@ namespace DataAccess.Repositories
                 return false;
 
             _context.Set<Entity>().Remove(entity);
-            _context.SaveChanges();
+            await  _context.SaveChangesAsync();
             return true;
         }
 

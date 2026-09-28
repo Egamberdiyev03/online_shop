@@ -11,9 +11,9 @@ namespace Application.Interfaces
 {
     public interface ICartService 
     {
+        Task<ResponseModel<CartDto>> CreateCartAsync(CreateCartDto cartDto);
         Task<ResponseModel<List<CartDto>>> GetAllCartsAsync();
         Task<ResponseModel<CartDto>> GetCartByIdAsync(int id);
-        Task<CartDto> CreateCartAsync(CreateCartDto cartDto);
         Task<bool> DeleteCartAsync(int id);
 
 
