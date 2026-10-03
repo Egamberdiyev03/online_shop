@@ -1,4 +1,4 @@
 export const environment = {
   production: false,
-  apiUrl: 'https://localhost:7083'
+  apiUrl: 'http://myonlineshop111.runasp.net'
 };
