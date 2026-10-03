@@ -10,8 +10,8 @@ namespace Application.DTOs.Comment
     {
         public int Id { get; set; }
         public string? Content { get; set; }
-        public int CustomerId { get; set; }
-        public string? CustomerName { get; set; }
+        public int UserId { get; set; }
+        public string? UserName { get; set; }
         public int ProductId { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }

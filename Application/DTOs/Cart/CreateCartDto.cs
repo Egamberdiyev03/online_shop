@@ -8,6 +8,6 @@ namespace Application.DTOs.Cart
 {
     public class CreateCartDto
     {
-        public int CustomerId { get; set; }
+        public int UserId { get; set; }
     }
 }

@@ -17,10 +17,10 @@ namespace Application.Interfaces
         Task<bool> DeleteCartAsync(int id);
 
 
-        Task<ResponseModel<CartDto>> GetCartByCustomerIdAsync(int customerId);
-        Task<ResponseModel<bool>> AddItemToCartAsync(int customerId, int productId, int quantity);
-        Task<ResponseModel<bool>> UpdateItemQuantityAsync(int customerId, int productId, int quantity);
-        Task<ResponseModel<bool>> RemoveItemFromCartAsync(int customerId, int productId);
-        Task<bool> ClearCartAsync(int customerId);
+        Task<ResponseModel<CartDto>> GetCartByUserIdAsync(int userId);
+        Task<ResponseModel<bool>> AddItemToCartAsync(int userId, int productId, int quantity);
+        Task<ResponseModel<bool>> UpdateItemQuantityAsync(int userId, int productId, int quantity);
+        Task<ResponseModel<bool>> RemoveItemFromCartAsync(int userId, int productId);
+        Task<bool> ClearCartAsync(int userId);
     }
 }

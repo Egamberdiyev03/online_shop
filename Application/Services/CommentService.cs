@@ -51,10 +51,10 @@ namespace Application.Services
                     Id = c.Id,
                     Content = c.Content,
                     CreatedAt = c.CreatedAt,
-                    CustomerId = c.CustomerId,
+                    UserId = c.UserId,
                     ProductId = c.ProductId,
                     StarRating = c.StarRating,
-                    CustomerName = c.Customer.Name
+                    UserName = c.User.Name
                 }).ToListAsync();
 
             if(comments==null || !comments.Any()) return new List<CommentDto>();
@@ -99,7 +99,7 @@ namespace Application.Services
                 .Select(c => new CommentDto
                 {
                     ProductId = c.ProductId,
-                    CustomerId = c.CustomerId,
+                    UserId = c.UserId,
                     Content = c.Content,
                     CreatedAt = c.CreatedAt,
                     UpdatedAt = c.UpdatedAt,
@@ -112,14 +112,14 @@ namespace Application.Services
             return new(comments); 
         }
 
-        public async Task<ResponseModel<List<CommentDto>>> GetCommentsByCustomerId(int customerId)
+        public async Task<ResponseModel<List<CommentDto>>> GetCommentsByUserId(int UserId)
         {
             var comments = await _commentRepository.GetAsQueryable()
-               .Where(c => c.CustomerId==customerId)
+               .Where(c => c.UserId==UserId)
                .Select(c => new CommentDto
                {
                    ProductId = c.ProductId,
-                   CustomerId = c.CustomerId,
+                   UserId = c.UserId,
                    Content = c.Content,
                    CreatedAt = c.CreatedAt,
                    UpdatedAt = c.UpdatedAt,

@@ -29,21 +29,24 @@ namespace Application.Services
         public async Task<ResponseModel<CartDto>> CreateCartAsync(CreateCartDto cart)
         {
             var existingCart = await _cartRepository.GetAsQueryable()
-                .FirstOrDefaultAsync(d => d.CustomerId == cart.CustomerId);
+                .FirstOrDefaultAsync(d => d.UserId == cart.UserId);
+
+            if (existingCart == null)
+                return new("User Topilmadi", HttpStatusCode.BadRequest);
 
             if(existingCart !=null)
             {
                 return new(new CartDto
                 {
                     Id = existingCart.Id,
-                    CustomerId = existingCart.CustomerId,
+                    UserId = existingCart.UserId,
                     CreatedAt = existingCart.CreatedAt
                 });
             }
 
             var cartEntity = new Cart
             {
-                CustomerId = cart.CustomerId,
+                UserId = cart.UserId,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -53,7 +56,7 @@ namespace Application.Services
             return new(new CartDto
             {
                 Id=cartEntity.Id,
-                CustomerId = cartEntity.CustomerId,
+                UserId = cartEntity.UserId,
                 CreatedAt = cartEntity.CreatedAt
             });
         }
@@ -64,7 +67,7 @@ namespace Application.Services
             .Select(c => new CartDto
             {
                 Id = c.Id,
-                CustomerId = c.CustomerId,
+                UserId = c.UserId,
                 CreatedAt = c.CreatedAt
             }).ToListAsync();
 
@@ -80,7 +83,7 @@ namespace Application.Services
             return new(new CartDto
             {
                 Id = cart.Id,
-                CustomerId = cart.CustomerId,
+                UserId = cart.UserId,
                 CreatedAt = cart.CreatedAt
             });
         }
@@ -94,14 +97,14 @@ namespace Application.Services
             return result;
         }
 
-        public async Task<ResponseModel<bool>> AddItemToCartAsync(int customerId, int productId, int quantity)
+        public async Task<ResponseModel<bool>> AddItemToCartAsync(int userId, int productId, int quantity)
         {
-            var cart = await _cartRepository.GetAsQueryable().FirstOrDefaultAsync(a => a.CustomerId == customerId);
+            var cart = await _cartRepository.GetAsQueryable().FirstOrDefaultAsync(a => a.UserId == userId);
             if(cart == null)
             {
                Cart newCart= new Cart
                {
-                   CustomerId = customerId,
+                   UserId = userId,
                    CreatedAt = DateTime.UtcNow
                };
                 await  _cartRepository.AddAsync(newCart);
@@ -145,11 +148,11 @@ namespace Application.Services
          //  return new(false);
         }
 
-        public async Task<bool> ClearCartAsync(int customerId)
+        public async Task<bool> ClearCartAsync(int userId)
         {
             var cart = await _cartRepository.GetAsQueryable()
                 .Include(c => c.CartItems)
-                .FirstOrDefaultAsync(s=>s.CustomerId==customerId);
+                .FirstOrDefaultAsync(s=>s.UserId==userId);
 
             if(cart == null) return false;
 
@@ -163,19 +166,19 @@ namespace Application.Services
             return true; 
         }
 
-        public async Task<ResponseModel<CartDto>> GetCartByCustomerIdAsync(int customerId)
+        public async Task<ResponseModel<CartDto>> GetCartByUserIdAsync(int userId)
         {
             var cart = await _cartRepository.GetAsQueryable()
                 .Include(s=>s.CartItems)
                 .ThenInclude(d=>d.Product)
-                .FirstOrDefaultAsync(s => s.CustomerId == customerId);
+                .FirstOrDefaultAsync(s => s.UserId == userId);
             if (cart == null)
-                 return new($"Customer {customerId} uchun cart topilmadi",HttpStatusCode.NotFound);
+                 return new($"Customer {userId} uchun cart topilmadi",HttpStatusCode.NotFound);
 
             return new(new CartDto  
             {
                 Id = cart.Id,
-                CustomerId = customerId,
+                UserId = userId,
                 CreatedAt = cart.CreatedAt,
                 CartItems= cart.CartItems.Select( c=> new CartItemDto
                 {
@@ -189,12 +192,12 @@ namespace Application.Services
             });
         }
 
-        public async Task<ResponseModel<bool>> RemoveItemFromCartAsync(int customerId, int productId)
+        public async Task<ResponseModel<bool>> RemoveItemFromCartAsync(int userId, int productId)
         {
            
            var cart =await _cartRepository.GetAsQueryable()
                 .Include(s=>s.CartItems)
-                .FirstOrDefaultAsync(c=>c.CustomerId == customerId);
+                .FirstOrDefaultAsync(c=>c.UserId == userId);
 
             if (cart == null)
                 return new("Cart topilmadi",HttpStatusCode.NotFound);
@@ -202,22 +205,22 @@ namespace Application.Services
             var item = cart.CartItems.FirstOrDefault(c=>c.ProductId==productId);
 
             if (item == null) 
-                return new($"Bu customer savatida {productId} idli mahsulot yuq",HttpStatusCode.NotFound);
+                return new($"Bu User savatida {productId} idli mahsulot yuq",HttpStatusCode.NotFound);
 
             cart.CartItems.Remove(item);
            await _cartRepository.SaveChangesAsync();
                 return new(true);
         }
 
-        public async Task<ResponseModel<bool>> UpdateItemQuantityAsync(int customerId, int productId, int quantity)
+        public async Task<ResponseModel<bool>> UpdateItemQuantityAsync(int userId, int productId, int quantity)
         {
             var cart = await _cartRepository
                 .GetAsQueryable()
                 .Include(s=>s.CartItems)
-                .FirstOrDefaultAsync(c=>c.CustomerId== customerId);
+                .FirstOrDefaultAsync(c=>c.UserId== userId);
 
             if (cart == null || !cart.CartItems.Any()) 
-                return new($"Customer {customerId} uchun cart topilmadi",HttpStatusCode.BadRequest);
+                return new($"User {userId} uchun cart topilmadi",HttpStatusCode.BadRequest);
 
             var item = cart.CartItems.FirstOrDefault( c=>c.ProductId==productId);
 

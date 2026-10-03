@@ -19,9 +19,9 @@ namespace OnlineShop.Controllers
         }
 
         [HttpPost("Create")]
-        public Task<ResponseModel<bool>> CreateOrder (int customerId, int branchId)
+        public Task<ResponseModel<bool>> CreateOrder (int userId, int branchId)
         {
-            return   _orderService.CreateOrder(customerId,branchId);   
+            return   _orderService.CreateOrder(userId,branchId);   
         }
 
         [HttpGet("GetById")]
@@ -37,9 +37,9 @@ namespace OnlineShop.Controllers
         }
 
         [HttpGet("GetOrderByCustomerId")]
-        public async Task<ResponseModel<List<OrderDto>>> GetOrderByCustomerId(int customerId)
+        public async Task<ResponseModel<List<OrderDto>>> GetOrderByUserId(int customerId)
         {
-            var orders =  await _orderService.GetByOrderCustomerId(customerId);
+            var orders =  await _orderService.GetByOrderUserId(customerId);
 
             return orders;
         }

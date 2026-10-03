@@ -10,7 +10,7 @@ namespace Application.DTOs.Cart
     public class CartDto
     {
         public int Id { get; set; }
-        public int CustomerId { get; set; }
+        public int UserId { get; set; }
         public DateTime CreatedAt { get; set; }
         public decimal TotalPrice { get; set; }
         public List<CartItemDto> CartItems { get; set; } = new();

@@ -12,13 +12,13 @@ namespace Application.Interfaces
 {
     public interface IOrderService 
     {
-        Task<ResponseModel<bool>> CreateOrder(int customerId, int branchId);
+        Task<ResponseModel<bool>> CreateOrder(int UserId, int branchId);
         Task<List<OrderDto>> GetAllOrder();
         Task<ResponseModel<OrderDto>> GetOrderById(int id);
         Task<ResponseModel<bool>> DeleteOrder(int id);
 
 
-        Task<ResponseModel<List<OrderDto>>> GetByOrderCustomerId(int customerId);
+        Task<ResponseModel<List<OrderDto>>> GetByOrderUserId(int userId);
         Task<ResponseModel<List<OrderDto>>> GetOrdersByBranchId(int branchId);
         Task<ResponseModel<List<OrderDto>>> GetOrdersByStatus(OrderStatus status);
         Task<ResponseModel<List<OrderDto>>> GetOrdersByDateRange(DateTime from, DateTime to);

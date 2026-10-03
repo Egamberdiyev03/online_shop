@@ -51,7 +51,8 @@ namespace Application.Services
                 {
                     Id = c.Id,
                     Title = c.Title,
-                    Description = c.Description
+                    Description = c.Description,
+                    isActive=c.IsActive
                 }).ToListAsync();
 
             if(categories==null || categories.Count==0)

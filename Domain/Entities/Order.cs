@@ -11,7 +11,7 @@ namespace Domain.Entities
     public class Order
     {
         public int Id { get; set; }
-        public int CustomerId { get; set; }
+        public int UserId { get; set; }
         public int CompanyBranchId { get; set; }
 
         public DateTime CreatedAt { get; set; }
@@ -21,7 +21,7 @@ namespace Domain.Entities
         public OrderStatus Status { get; set; }
 
         public List<OrderItem> OrderItems { get; set; } = new();
-        public Customer Customer { get; set; }
+        public User User { get; set; }
         public Payment Payment { get; set; }
         public CompanyBranch CompanyBranch { get; set; }
     }

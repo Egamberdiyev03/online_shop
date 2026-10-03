@@ -36,16 +36,16 @@ namespace Application.Services
         }
         
         
-        public async Task<ResponseModel<bool>> CreateOrder (int customerId,int branchId)
+        public async Task<ResponseModel<bool>> CreateOrder (int UserId,int branchId)
         {            
             var cart = await _cartRepository
                 .GetAsQueryable()
                 .Include(c => c.CartItems)
                 .ThenInclude(t=>t.Product)
-                .FirstOrDefaultAsync(s => s.CustomerId == customerId);
+                .FirstOrDefaultAsync(s => s.UserId == UserId);
 
             if (cart == null)
-                return new($"Bu customerda faol savat topilmadi ", HttpStatusCode.NotFound);
+                return new($"Bu Userda faol savat topilmadi ", HttpStatusCode.NotFound);
 
             var items = cart.CartItems.ToList();
 
@@ -56,7 +56,15 @@ namespace Application.Services
 
             foreach(var item in items)
             {
+                if (item.Product.Quantity < item.Quantity)
+                {
+                    return new($"\"{item.Product.Name}\" mahsulotidan yetarli miqdorda qolmagan. Omborda: {item.Product.Quantity} ta", HttpStatusCode.BadRequest);
+                }
+
                 totalPrice += item.Product.Price * item.Quantity;
+                item.Product.Quantity -= item.Quantity;
+                
+                await _productRepository.UpdateAsync(item.Product);
             }
 
             var branch = await _branchRepository.GetByIdAsync(branchId);
@@ -69,7 +77,7 @@ namespace Application.Services
                 CompanyBranchId = branchId,
                 TotalPrice = totalPrice,
                 CreatedAt = DateTime.UtcNow,
-                CustomerId = cart.CustomerId,
+                UserId = cart.UserId,
                 Status = OrderStatus.Pending,
                 ProductCount = cart.CartItems.Count,
                 OrderItems = cart.CartItems.Select(o => new OrderItem
@@ -94,7 +102,7 @@ namespace Application.Services
             {
                 Id = c.Id,
                 CompanyBranchId= c.CompanyBranchId,
-                CustomerId = c.CustomerId,
+                UserId = c.UserId,
                 Status = c.Status,
                 CreatedAt = c.CreatedAt,
                 TotalPrice = c.TotalPrice,
@@ -132,12 +140,12 @@ namespace Application.Services
              return new(true);
         }
 
-        public async Task<ResponseModel<List<OrderDto>>> GetByOrderCustomerId (int customerId)
+        public async Task<ResponseModel<List<OrderDto>>> GetByOrderUserId (int UserId)
         {
             var orders =  await _orderRepository.GetAsQueryable()
                 .Include(c => c.OrderItems)
                 .ThenInclude(d => d.Product)
-                .Where(c => c.CustomerId == customerId)
+                .Where(c => c.UserId == UserId)
                 .OrderByDescending(t=>t.CreatedAt)
                 .ToListAsync();
 
@@ -238,3 +246,6 @@ namespace Application.Services
         }
     }
 }
+
+
+

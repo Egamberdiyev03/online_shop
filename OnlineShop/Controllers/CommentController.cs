@@ -52,9 +52,9 @@ namespace OnlineShop.Controllers
         }
 
         [HttpGet("GetByCustomerId")]
-        public async Task<ResponseModel<List<CommentDto>>> GetCommentsByCustomerId(int customerId)
+        public async Task<ResponseModel<List<CommentDto>>> GetCommentsByUserId(int customerId)
         {
-            return await _commentService.GetCommentsByCustomerId(customerId);
+            return await _commentService.GetCommentsByUserId(customerId);
         }
 
         [HttpGet("GetAverageRating")]

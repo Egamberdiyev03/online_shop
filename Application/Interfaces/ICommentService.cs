@@ -19,7 +19,7 @@ namespace Application.Interfaces
 
 
         Task<ResponseModel<List<CommentDto>>> GetCommentsByProductId(int productId);
-        Task<ResponseModel<List<CommentDto>>> GetCommentsByCustomerId(int customerId);
+        Task<ResponseModel<List<CommentDto>>> GetCommentsByUserId(int UserId);
         Task<ResponseModel<double>> GetAverageRatingByProductId(int productId);
     }
 }

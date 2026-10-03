@@ -10,7 +10,7 @@ namespace Application.DTOs.Comment
     public class CreateCommentDto
     {
         public string? Content { get; set; }
-        public int CustomerId { get; set; }
+        public int UserId { get; set; }
         public int ProductId { get; set; }
 
         [Range(1, 5, ErrorMessage = "Baho 1 dan 5 gacha bo'lishi kerak")]

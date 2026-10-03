@@ -1,9 +1,7 @@
 ﻿using Application.DTOs.Cart;
 using Application.Extentions;
 using Application.Interfaces;
-using Application.Services;
 using Microsoft.AspNetCore.Mvc;
-using System.ComponentModel.Design.Serialization;
 
 namespace OnlineShop.Controllers
 {
@@ -41,27 +39,27 @@ namespace OnlineShop.Controllers
         }
 
         [HttpPost("AddItemtoCart")]
-        public async Task<ResponseModel<bool>> AddCartItemAsync(int customerId,int productId, int quantity)
+        public async Task<ResponseModel<bool>> AddCartItemAsync(int UserId,int productId, int quantity)
         {
-          return await  _cartService.AddItemToCartAsync(customerId, productId, quantity);
+          return await  _cartService.AddItemToCartAsync(UserId, productId, quantity);
         }
 
         [HttpGet("GetByCustomerIdCart")]
-        public Task<ResponseModel<CartDto>> GetByCustomerIdCart(int customerId)
+        public Task<ResponseModel<CartDto>> GetByUserIdCart(int UserId)
         {
-           return  _cartService.GetCartByCustomerIdAsync(customerId);
+           return  _cartService.GetCartByUserIdAsync(UserId);
         }
 
         [HttpPut("Update")]
-        public async Task<ResponseModel<bool>> UpdateCart(int customerId, int productId, int quantity)
+        public async Task<ResponseModel<bool>> UpdateCart(int UserId, int productId, int quantity)
         {
-           return await _cartService.UpdateItemQuantityAsync( customerId, productId, quantity);
+           return await _cartService.UpdateItemQuantityAsync( UserId, productId, quantity);
         }
 
         [HttpDelete("RemoveItemfromCart")]
-        public async Task<ResponseModel<bool>> RemoveItemfromCartToProduct(int customerId,int productId)
+        public async Task<ResponseModel<bool>> RemoveItemfromCartToProduct(int UserId,int productId)
         {
-           return await _cartService.RemoveItemFromCartAsync(customerId, productId);
+           return await _cartService.RemoveItemFromCartAsync(UserId, productId);
         }
 
     }

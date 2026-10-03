@@ -1,7 +1,7 @@
 ﻿using Application.DTOs.Comment;
 using Application.DTOs.Company;
 using Application.DTOs.CompanyBranch;
-using Application.DTOs.Customer;
+using Application.DTOs.User;
 using Application.DTOs.Order;
 using Application.DTOs.OrderItem;
 using Application.DTOs.Payment;
@@ -28,9 +28,9 @@ namespace Application.Mapping
             CreateMap<CompanyBranch, CompanyBranchDto>().ReverseMap();
             CreateMap<UpdateCompanyBranchDto, CompanyBranch>();
 
-            CreateMap<CustomerDto, Customer>().ReverseMap();
-            CreateMap<CreateCustomerDto, Customer>().ReverseMap();
-            CreateMap<UpdateCustomerDto, Customer>().ReverseMap();
+            CreateMap<UserDto, User>().ReverseMap();
+            CreateMap<CreateUserDto, User>().ReverseMap();
+            CreateMap<UpdateUserDto, User>().ReverseMap();
 
             CreateMap<CreateOrderDto, Order>().ReverseMap();
             CreateMap<Order, OrderDto>().ReverseMap();
