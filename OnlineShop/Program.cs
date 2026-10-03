@@ -12,7 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddCors(o => o.AddPolicy("Front", p => p
-    .WithOrigins("http://onlineshopuz.runasp.net", "http://localhost:4200")
+    .WithOrigins("http://onlineshopuz.runasp.net", "https://onlineshopuz.runasp.net", "http://localhost:4200")
     .AllowAnyHeader().AllowAnyMethod()));
 
 // app.UseAuthorization(); dan oldin:
