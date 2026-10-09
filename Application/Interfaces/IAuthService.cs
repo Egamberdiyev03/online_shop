@@ -1,4 +1,4 @@
-﻿using Application.DTOs.Auth;
+using Application.DTOs.Auth;
 using Application.Extentions;
 using System;
 using System.Collections.Generic;
@@ -13,6 +13,8 @@ namespace Application.Interfaces
         Task<ResponseModel<string>> RegisterAsync(RegisterDto dto);
         Task<ResponseModel<AuthResponseDto>> ConfirmEmailAsync(ConfirmEmailDto dto);
         Task<ResponseModel<AuthResponseDto>> LoginAsync(LoginDto dto);
+        Task<ResponseModel<string>> ForgotPasswordAsync(ForgotPasswordDto dto);
+        Task<ResponseModel<string>> ResetPasswordAsync(ResetPasswordDto dto);
     }
 }
  

@@ -1,7 +1,9 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
 import { Product, CreateProductDto, UpdateProductDto, PagedResult } from '../../../core/models/product.model';
 import { Category } from '../../../core/models/category.model';
 import { ProductService } from '../../../core/services/product.service';
@@ -9,218 +11,348 @@ import { CategoryService } from '../../../core/services/category.service';
 import { CartService } from '../../../core/services/cart.service';
 import { AuthStateService } from '../../../core/services/auth-state.service';
 import { NotificationService } from '../../../core/services/notification.service';
-import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner.component';
-import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
 import { ProductFormModalComponent } from '../product-form-modal/product-form-modal.component';
 
 @Component({
   selector: 'app-product-list',
   standalone: true,
   imports: [
-    CommonModule, 
-    RouterModule, 
-    FormsModule, 
-    LoadingSpinnerComponent, 
-    EmptyStateComponent,
+    CommonModule,
+    RouterModule,
+    FormsModule,
     ProductFormModalComponent
   ],
   template: `
-    <div class="container">
-      <!-- Hero / Header -->
-      <div class="page-header">
-        <div>
-          <h1 class="page-title">Mahsulotlar Katalogi</h1>
-          <p class="page-subtitle">Sifatli va qulay mahsulotlar to'plami (Jami {{ totalItems }} ta)</p>
-        </div>
-
-        <button 
-          *ngIf="authState.isAdminMode()" 
-          class="btn btn-primary"
-          (click)="openCreateModal()"
-        >
-          <span>&#10010;</span> Yangi Mahsulot Qo'shish
-        </button>
-      </div>
-
-      <!-- Filters & Search Bar -->
-      <div class="filter-bar card">
-        <div class="search-box">
-          <span class="search-icon">&#128269;</span>
-          <input 
-            type="text" 
-            [(ngModel)]="searchQuery" 
-            (ngModelChange)="onFilterChange()"
-            placeholder="Mahsulot nomi yoki tavsifi bo'yicha qidiruv..." 
-            class="search-input"
-          />
-          <button *ngIf="searchQuery" class="clear-btn" (click)="searchQuery = ''; onFilterChange()">&times;</button>
-        </div>
-
-        <div class="filter-controls">
-          <select [(ngModel)]="selectedCategoryId" (ngModelChange)="onFilterChange()" class="form-control select-filter">
-            <option [ngValue]="null">Barcha Kategoriyalar</option>
-            <option *ngFor="let cat of categories" [ngValue]="cat.id">
-              {{ cat.title }}
-            </option>
-          </select>
-
-          <select [(ngModel)]="sortBy" (ngModelChange)="onSortChange()" class="form-control select-filter">
-            <option value="default">Tartiblash (Standart)</option>
-            <option value="price-asc">Narx: Arzondan qimmatga</option>
-            <option value="price-desc">Narx: Qimmatdan arzonga</option>
-            <option value="name">Nomi bo'yicha (A-Z)</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Loading State -->
-      <app-loading-spinner *ngIf="isLoading" message="Mahsulotlar yuklanmoqda..."></app-loading-spinner>
-
-      <!-- Empty State -->
-      <app-empty-state 
-        *ngIf="!isLoading && products.length === 0"
-        icon="&#128717;"
-        title="Mahsulotlar topilmadi"
-        description="Tanlangan filtr yoki qidiruv bo'yicha mahsulot topilmadi."
-        [actionText]="emptyActionText"
-        (actionClick)="resetFilters()"
-      ></app-empty-state>
-
-      <!-- Products Grid -->
-      <div class="products-grid" *ngIf="!isLoading && products.length > 0">
-        <div class="product-card card" *ngFor="let product of products">
-          <div class="card-image-wrap" [routerLink]="['/products', product.id]">
-            <img 
-              *ngIf="product.image" 
-              [src]="product.image" 
-              [alt]="product.name"
-              class="product-image"
-              (error)="product.image = ''"
-            />
-            <div *ngIf="!product.image" class="image-fallback">
-              <span>{{ product.name.charAt(0).toUpperCase() }}</span>
-            </div>
-            <span class="stock-badge" [class.out-of-stock]="product.quantity <= 0">
-              {{ product.quantity > 0 ? product.quantity + ' dona qoldi' : 'Tugagan' }}
-            </span>
+    <div class="page-wrapper">
+      <div class="page-container">
+        <!-- Hero / Header -->
+        <div class="page-header">
+          <div class="header-content">
+            <h1 class="page-title">
+              {{ authState.isBranchManager() ? 'Filial Mahsulotlari' : 'Mahsulotlar Katalogi' }}
+            </h1>
+            <p class="page-subtitle">
+              {{ authState.isBranchManager()
+                  ? 'Filial #' + (authState.userBranchId() || '') + ' - mahsulotlar'
+                  : 'Sifatli va qulay mahsulotlar' }}
+            </p>
           </div>
 
-          <div class="card-body">
-            <div class="product-category" *ngIf="getCategoryTitle(product.categoryId)">
-              {{ getCategoryTitle(product.categoryId) }}
-            </div>
-            
-            <h3 class="product-name" [routerLink]="['/products', product.id]">
-              {{ product.name }}
-            </h3>
-            
-            <p class="product-desc" *ngIf="product.description">
-              {{ product.description }}
-            </p>
+          <button
+            *ngIf="authState.isAdminMode()"
+            class="btn btn-primary add-product-btn"
+            (click)="openCreateModal()"
+          >
+            <span class="btn-icon">+</span>
+            <span>Yangi Mahsulot</span>
+          </button>
+        </div>
 
-            <div class="price-row">
-              <div class="product-price">
-                {{ product.price | number:'1.0-0' }} so'm
+        <!-- Sticky Filter Panel -->
+        <div class="filter-panel" [class.scrolled]="isScrolled">
+          <!-- Search Box -->
+          <div class="search-wrapper">
+            <div class="search-box" [class.focused]="searchFocused">
+              <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="M21 21l-4.35-4.35"/>
+              </svg>
+              <input
+                type="text"
+                [(ngModel)]="searchQuery"
+                (ngModelChange)="onSearchInput($event)"
+                (focus)="searchFocused = true"
+                (blur)="searchFocused = false"
+                placeholder="Mahsulot qidirish..."
+                class="search-input"
+                aria-label="Mahsulot qidirish"
+              />
+              <button
+                *ngIf="searchQuery"
+                class="clear-search-btn"
+                (click)="clearSearch()"
+                aria-label="Qidiruvni tozalash"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </button>
+              <div class="search-spinner" *ngIf="isSearching">
+                <div class="spinner-ring"></div>
               </div>
-              <span class="branch-tag" *ngIf="product.companyBranchId">
-                Filial #{{ product.companyBranchId }}
+            </div>
+          </div>
+
+          <!-- Category Chips -->
+          <div class="category-chips-wrapper">
+            <div class="category-chips" #categoryChips>
+              <button
+                class="category-chip"
+                [class.active]="selectedCategoryId === null"
+                (click)="selectCategory(null)"
+              >
+                Barchasi
+                <span class="chip-count">{{ totalItems }}</span>
+              </button>
+              <button
+                *ngFor="let cat of categories"
+                class="category-chip"
+                [class.active]="selectedCategoryId === cat.id"
+                (click)="selectCategory(cat.id)"
+              >
+                {{ cat.title }}
+                <span class="chip-count" *ngIf="getCategoryCount(cat.id) > 0">{{ getCategoryCount(cat.id) }}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Sort & Results Info -->
+          <div class="filter-bottom-row">
+            <div class="results-info">
+              <span class="results-count">{{ totalItems }} ta mahsulot</span>
+              <span class="results-showing" *ngIf="products.length > 0">
+                ({{ (currentPage - 1) * pageSize + 1 }}-{{ Math.min(currentPage * pageSize, totalItems) }} ko'rsatilmoqda)
               </span>
             </div>
 
-            <!-- Actions -->
-            <div class="card-actions">
-              <button 
-                *ngIf="authState.canUseCart()"
-                class="btn btn-primary add-cart-btn"
-                [disabled]="product.quantity <= 0 || addingProductId === product.id"
-                (click)="addToCart(product)"
-              >
-                <span>&#128722;</span>
-                <span>{{ addingProductId === product.id ? 'Qo‘shilmoqda...' : 'Savatga' }}</span>
-              </button>
+            <div class="sort-dropdown-wrapper">
+              <label class="sort-label" for="sortSelect">Tartiblash:</label>
+              <div class="custom-select" [class.open]="sortDropdownOpen">
+                <button
+                  class="select-trigger"
+                  (click)="toggleSortDropdown()"
+                  aria-haspopup="listbox"
+                  [attr.aria-expanded]="sortDropdownOpen"
+                >
+                  <span>{{ getSortLabel(sortBy) }}</span>
+                  <svg class="select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M6 9l6 6 6-6"/>
+                  </svg>
+                </button>
+                <ul class="select-options" role="listbox" *ngIf="sortDropdownOpen">
+                  <li
+                    *ngFor="let opt of sortOptions"
+                    class="select-option"
+                    [class.selected]="sortBy === opt.value"
+                    (click)="selectSort(opt.value)"
+                    role="option"
+                  >
+                    <span class="option-icon">{{ opt.icon }}</span>
+                    <span>{{ opt.label }}</span>
+                    <svg *ngIf="sortBy === opt.value" class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                      <path d="M20 6L9 17l-5-5"/>
+                    </svg>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
 
-              <div class="admin-actions" *ngIf="authState.isAdminMode() || authState.isAdminRole()">
-                <button class="btn btn-secondary btn-sm" (click)="openEditModal(product)" title="Tahrirlash">
-                  &#9998; Tahrirlash
+          <!-- Active Filters -->
+          <div class="active-filters" *ngIf="hasActiveFilters">
+            <span class="filters-label">Filtrlar:</span>
+            <div class="filter-tags">
+              <span class="filter-tag" *ngIf="searchQuery">
+                <span class="tag-label">Qidiruv:</span> "{{ searchQuery }}"
+                <button class="tag-remove" (click)="clearSearch()" aria-label="Qidiruvni olib tashlash">&times;</button>
+              </span>
+              <span class="filter-tag" *ngIf="selectedCategoryId">
+                <span class="tag-label">Kategoriya:</span> {{ getSelectedCategoryName() }}
+                <button class="tag-remove" (click)="selectCategory(null)" aria-label="Kategoriyani olib tashlash">&times;</button>
+              </span>
+              <span class="filter-tag" *ngIf="sortBy !== 'default'">
+                <span class="tag-label">Tartiblash:</span> {{ getSortLabel(sortBy) }}
+                <button class="tag-remove" (click)="selectSort('default')" aria-label="Tartiblashni olib tashlash">&times;</button>
+              </span>
+            </div>
+            <button class="clear-all-btn" (click)="resetFilters()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14"/>
+              </svg>
+              Tozalash
+            </button>
+          </div>
+        </div>
+
+        <!-- Skeleton Loading -->
+        <div class="products-grid skeleton-grid" *ngIf="isLoading">
+          <div class="skeleton-card" *ngFor="let i of [1,2,3,4,5,6,7,8]">
+            <div class="skeleton-image"></div>
+            <div class="skeleton-body">
+              <div class="skeleton-line short"></div>
+              <div class="skeleton-line"></div>
+              <div class="skeleton-line medium"></div>
+              <div class="skeleton-price"></div>
+              <div class="skeleton-button"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty State -->
+        <div class="empty-state-wrapper" *ngIf="!isLoading && products.length === 0">
+          <div class="empty-state">
+            <div class="empty-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+            </div>
+            <h3 class="empty-title">Mahsulotlar topilmadi</h3>
+            <p class="empty-desc">
+              {{ searchQuery ? '"' + searchQuery + '" bo‘yicha hech narsa topilmadi.' : 'Tanlangan filtr bo‘yicha mahsulot yo‘q.' }}
+            </p>
+            <button class="btn btn-primary" (click)="resetFilters()" *ngIf="hasActiveFilters">
+              Filtrlarni tozalash
+            </button>
+          </div>
+        </div>
+
+        <!-- Products Grid -->
+        <div class="products-grid" *ngIf="!isLoading && products.length > 0">
+          <div class="product-card" *ngFor="let product of products">
+            <div class="card-image-wrap" [routerLink]="['/products', product.id]">
+              <img
+                *ngIf="product.image"
+                [src]="product.image"
+                [alt]="product.name"
+                class="product-image"
+                loading="lazy"
+                (error)="product.image = ''"
+              />
+              <div *ngIf="!product.image" class="image-fallback">
+                <span>{{ product.name.charAt(0).toUpperCase() }}</span>
+              </div>
+              <span class="stock-badge" [class.out-of-stock]="product.quantity <= 0">
+                {{ product.quantity > 0 ? product.quantity + ' dona' : 'Tugagan' }}
+              </span>
+            </div>
+
+            <div class="card-body">
+              <div class="product-category" *ngIf="getCategoryTitle(product.categoryId)">
+                {{ getCategoryTitle(product.categoryId) }}
+              </div>
+
+              <h3 class="product-name" [routerLink]="['/products', product.id]">
+                {{ product.name }}
+              </h3>
+
+              <p class="product-desc" *ngIf="product.description">
+                {{ product.description }}
+              </p>
+
+              <div class="price-row">
+                <div class="product-price">
+                  {{ product.price | number:'1.0-0' }} <span class="currency">so'm</span>
+                </div>
+                <span class="branch-tag" *ngIf="product.companyBranchId">
+                  Filial #{{ product.companyBranchId }}
+                </span>
+              </div>
+
+              <!-- Actions -->
+              <div class="card-actions">
+                <button
+                  *ngIf="authState.canUseCart()"
+                  class="btn btn-primary add-cart-btn"
+                  [disabled]="product.quantity <= 0 || addingProductId === product.id"
+                  (click)="addToCart(product)"
+                >
+                  <svg class="cart-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+                    <path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/>
+                  </svg>
+                  <span>{{ addingProductId === product.id ? 'Qo‘shilmoqda...' : 'Savatga' }}</span>
                 </button>
-                <button class="btn btn-danger btn-sm" (click)="deleteProduct(product)" title="O'chirish">
-                  &#128465; O'chirish
-                </button>
+
+                <div class="admin-actions" *ngIf="authState.isAdminMode() || authState.isAdminRole()">
+                  <button class="btn btn-secondary btn-icon-only" (click)="openEditModal(product)" title="Tahrirlash">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                  </button>
+                  <button class="btn btn-danger btn-icon-only" (click)="deleteProduct(product)" title="O'chirish">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
+
+        <!-- Pagination -->
+        <div class="pagination-bar" *ngIf="!isLoading && totalItems > pageSize">
+          <div class="pagination-info">
+            Jami <strong>{{ totalItems }}</strong> ta mahsulot
+          </div>
+
+          <div class="pagination-controls">
+            <button
+              class="page-btn nav-btn"
+              [disabled]="!hasPrevious"
+              (click)="prevPage()"
+              aria-label="Oldingi sahifa"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 18l-6-6 6-6"/>
+              </svg>
+            </button>
+
+            <button
+              *ngIf="visiblePages[0] > 1"
+              class="page-btn"
+              (click)="goToPage(1)"
+            >1</button>
+            <span *ngIf="visiblePages[0] > 2" class="page-dots">...</span>
+
+            <button
+              *ngFor="let p of visiblePages"
+              class="page-btn"
+              [class.active]="p === currentPage"
+              (click)="goToPage(p)"
+            >{{ p }}</button>
+
+            <span *ngIf="visiblePages[visiblePages.length - 1] < totalPages - 1" class="page-dots">...</span>
+            <button
+              *ngIf="visiblePages[visiblePages.length - 1] < totalPages"
+              class="page-btn"
+              (click)="goToPage(totalPages)"
+            >{{ totalPages }}</button>
+
+            <button
+              class="page-btn nav-btn"
+              [disabled]="!hasNext"
+              (click)="nextPage()"
+              aria-label="Keyingi sahifa"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </button>
+          </div>
+
+          <div class="page-size-picker">
+            <span class="size-label">Sahifada:</span>
+            <select
+              class="size-select"
+              [ngModel]="pageSize"
+              (ngModelChange)="onPageSizeChange($event)"
+              aria-label="Sahifadagi mahsulotlar soni"
+            >
+              <option [value]="12">12</option>
+              <option [value]="24">24</option>
+              <option [value]="48">48</option>
+            </select>
+          </div>
+        </div>
       </div>
 
-      <!-- Server-side Pagination Bar -->
-      <div class="pagination-bar card" *ngIf="!isLoading && totalItems > 0">
-        <div class="pagination-info">
-          Jami: <strong>{{ totalItems }}</strong> ta mahsulot &bull; Sahifa <strong>{{ currentPage }}</strong> / <strong>{{ totalPages }}</strong>
-        </div>
+      <!-- Overlay for dropdown -->
+      <div class="dropdown-overlay" *ngIf="sortDropdownOpen" (click)="sortDropdownOpen = false"></div>
 
-        <div class="pagination-controls">
-          <button 
-            class="page-btn prev-btn" 
-            [disabled]="!hasPrevious" 
-            (click)="prevPage()"
-            title="Oldingi sahifa"
-          >
-            &laquo; Oldingi
-          </button>
-
-          <button 
-            *ngIf="visiblePages[0] > 1" 
-            class="page-btn" 
-            (click)="goToPage(1)"
-          >
-            1
-          </button>
-          <span *ngIf="visiblePages[0] > 2" class="page-dots">...</span>
-
-          <button 
-            *ngFor="let p of visiblePages" 
-            class="page-btn" 
-            [class.active]="p === currentPage"
-            (click)="goToPage(p)"
-          >
-            {{ p }}
-          </button>
-
-          <span *ngIf="visiblePages[visiblePages.length - 1] < totalPages - 1" class="page-dots">...</span>
-          <button 
-            *ngIf="visiblePages[visiblePages.length - 1] < totalPages" 
-            class="page-btn" 
-            (click)="goToPage(totalPages)"
-          >
-            {{ totalPages }}
-          </button>
-
-          <button 
-            class="page-btn next-btn" 
-            [disabled]="!hasNext" 
-            (click)="nextPage()"
-            title="Keyingi sahifa"
-          >
-            Keyingi &raquo;
-          </button>
-        </div>
-
-        <div class="page-size-picker">
-          <span class="size-label">Sahifada:</span>
-          <select 
-            class="size-select" 
-            [ngModel]="pageSize" 
-            (ngModelChange)="onPageSizeChange($event)"
-          >
-            <option [value]="12">12 ta</option>
-            <option [value]="24">24 ta</option>
-            <option [value]="48">48 ta</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Create / Edit Modal -->
-      <app-product-form-modal 
+      <!-- Product Form Modal -->
+      <app-product-form-modal
         *ngIf="showModal"
         [product]="editingProduct"
         (save)="onSaveProduct($event)"
@@ -229,94 +361,580 @@ import { ProductFormModalComponent } from '../product-form-modal/product-form-mo
     </div>
   `,
   styles: [`
+    /* ===== PAGE LAYOUT ===== */
+    .page-wrapper {
+      min-height: 100vh;
+      background: var(--bg-main, #f8fafc);
+    }
+
+    .page-container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 1.5rem 1.5rem 3rem;
+    }
+
+    @media (min-width: 768px) {
+      .page-container {
+        padding: 2rem 2rem 4rem;
+      }
+    }
+
+    /* ===== PAGE HEADER ===== */
     .page-header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: flex-start;
       margin-bottom: 1.5rem;
       gap: 1rem;
       flex-wrap: wrap;
     }
+
     .page-title {
       font-size: 1.75rem;
       font-weight: 800;
-      color: var(--secondary);
+      color: var(--text-primary, #0f172a);
       letter-spacing: -0.02em;
+      margin: 0;
     }
+
     .page-subtitle {
-      color: var(--text-muted);
-      font-size: 0.875rem;
-      margin-top: 0.25rem;
+      color: var(--text-secondary, #64748b);
+      font-size: 0.9rem;
+      margin: 0.25rem 0 0;
     }
-    .filter-bar {
-      padding: 1rem 1.25rem;
-      margin-bottom: 2rem;
+
+    .add-product-btn {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
-      flex-wrap: wrap;
+      gap: 0.5rem;
+      padding: 0.625rem 1.25rem;
+      font-weight: 600;
     }
+
+    .btn-icon {
+      font-size: 1.25rem;
+      line-height: 1;
+    }
+
+    /* ===== STICKY FILTER PANEL ===== */
+    .filter-panel {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 16px;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      transition: all 0.3s ease;
+    }
+
+    .filter-panel.scrolled {
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      border-color: transparent;
+    }
+
+    /* ===== SEARCH BOX ===== */
+    .search-wrapper {
+      margin-bottom: 1rem;
+    }
+
     .search-box {
-      flex: 1;
-      min-width: 260px;
       display: flex;
       align-items: center;
-      background: var(--bg-subtle);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-md);
-      padding: 0.25rem 0.75rem;
-      position: relative;
+      background: var(--bg-subtle, #f1f5f9);
+      border: 2px solid transparent;
+      border-radius: 12px;
+      padding: 0.5rem 1rem;
+      transition: all 0.2s ease;
     }
+
+    .search-box.focused {
+      background: #fff;
+      border-color: var(--primary, #6366f1);
+      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+    }
+
     .search-icon {
-      font-size: 0.875rem;
-      color: var(--text-light);
-      margin-right: 0.5rem;
+      width: 20px;
+      height: 20px;
+      color: var(--text-muted, #94a3b8);
+      flex-shrink: 0;
     }
+
     .search-input {
+      flex: 1;
       border: none;
       background: transparent;
-      padding: 0.5rem 0;
-      width: 100%;
-      font-size: 0.875rem;
-      color: var(--text-main);
+      padding: 0.5rem 0.75rem;
+      font-size: 0.9375rem;
+      color: var(--text-primary, #0f172a);
       outline: none;
     }
-    .clear-btn {
-      background: none;
+
+    .search-input::placeholder {
+      color: var(--text-muted, #94a3b8);
+    }
+
+    .clear-search-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
       border: none;
-      color: var(--text-light);
+      background: var(--bg-subtle, #e2e8f0);
+      border-radius: 50%;
       cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .clear-search-btn:hover {
+      background: var(--danger, #ef4444);
+      color: white;
+    }
+
+    .clear-search-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .search-spinner {
+      margin-left: 0.5rem;
+    }
+
+    .spinner-ring {
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border, #e2e8f0);
+      border-top-color: var(--primary, #6366f1);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ===== CATEGORY CHIPS ===== */
+    .category-chips-wrapper {
+      overflow-x: auto;
+      margin: 0 -1rem;
+      padding: 0 1rem;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    .category-chips-wrapper::-webkit-scrollbar {
+      display: none;
+    }
+
+    .category-chips {
+      display: flex;
+      gap: 0.5rem;
+      padding-bottom: 0.5rem;
+    }
+
+    .category-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.5rem 1rem;
+      background: var(--bg-subtle, #f1f5f9);
+      border: 1px solid transparent;
+      border-radius: 9999px;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text-secondary, #475569);
+      white-space: nowrap;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .category-chip:hover {
+      background: #e0e7ff;
+      color: var(--primary, #6366f1);
+    }
+
+    .category-chip.active {
+      background: var(--primary, #6366f1);
+      color: white;
+      border-color: var(--primary, #6366f1);
+    }
+
+    .chip-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 20px;
+      padding: 0 6px;
+      background: rgba(0, 0, 0, 0.1);
+      border-radius: 9999px;
+      font-size: 0.6875rem;
+      font-weight: 700;
+    }
+
+    .category-chip.active .chip-count {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    /* ===== FILTER BOTTOM ROW ===== */
+    .filter-bottom-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border, #e2e8f0);
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .results-info {
+      font-size: 0.875rem;
+      color: var(--text-secondary, #64748b);
+    }
+
+    .results-count {
+      font-weight: 700;
+      color: var(--text-primary, #0f172a);
+    }
+
+    .results-showing {
+      color: var(--text-muted, #94a3b8);
+    }
+
+    /* ===== CUSTOM SORT DROPDOWN ===== */
+    .sort-dropdown-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .sort-label {
+      font-size: 0.8125rem;
+      color: var(--text-muted, #94a3b8);
+      display: none;
+    }
+
+    @media (min-width: 640px) {
+      .sort-label {
+        display: block;
+      }
+    }
+
+    .custom-select {
+      position: relative;
+    }
+
+    .select-trigger {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.875rem;
+      background: var(--bg-subtle, #f1f5f9);
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text-primary, #0f172a);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .select-trigger:hover {
+      border-color: var(--primary, #6366f1);
+    }
+
+    .custom-select.open .select-trigger {
+      border-color: var(--primary, #6366f1);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+
+    .select-arrow {
+      width: 16px;
+      height: 16px;
+      transition: transform 0.2s;
+    }
+
+    .custom-select.open .select-arrow {
+      transform: rotate(180deg);
+    }
+
+    .select-options {
+      position: absolute;
+      top: calc(100% + 4px);
+      right: 0;
+      min-width: 200px;
+      background: white;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 12px;
+      padding: 0.375rem;
+      margin: 0;
+      list-style: none;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
+      z-index: 50;
+    }
+
+    .select-option {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.625rem 0.75rem;
+      font-size: 0.875rem;
+      color: var(--text-primary, #0f172a);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .select-option:hover {
+      background: var(--bg-subtle, #f1f5f9);
+    }
+
+    .select-option.selected {
+      background: #eef2ff;
+      color: var(--primary, #6366f1);
+    }
+
+    .option-icon {
       font-size: 1rem;
     }
-    .filter-controls {
+
+    .check-icon {
+      width: 16px;
+      height: 16px;
+      margin-left: auto;
+      color: var(--primary, #6366f1);
+    }
+
+    .dropdown-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 39;
+    }
+
+    /* ===== ACTIVE FILTERS ===== */
+    .active-filters {
       display: flex;
+      align-items: center;
       gap: 0.75rem;
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border, #e2e8f0);
       flex-wrap: wrap;
     }
-    .select-filter {
-      min-width: 170px;
-      font-size: 0.875rem;
-      padding: 0.5rem 0.75rem;
+
+    .filters-label {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text-muted, #94a3b8);
     }
+
+    .filter-tags {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .filter-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.25rem 0.5rem 0.25rem 0.75rem;
+      background: #eef2ff;
+      border: 1px solid #c7d2fe;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      color: var(--primary, #4f46e5);
+    }
+
+    .tag-label {
+      font-weight: 600;
+      color: #6366f1;
+    }
+
+    .tag-remove {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      background: #c7d2fe;
+      border: none;
+      border-radius: 50%;
+      color: #4f46e5;
+      font-size: 1rem;
+      line-height: 1;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .tag-remove:hover {
+      background: #ef4444;
+      color: white;
+    }
+
+    .clear-all-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.375rem 0.75rem;
+      background: transparent;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted, #64748b);
+      cursor: pointer;
+      margin-left: auto;
+      transition: all 0.2s;
+    }
+
+    .clear-all-btn:hover {
+      background: #fef2f2;
+      border-color: #fecaca;
+      color: #ef4444;
+    }
+
+    .clear-all-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    /* ===== SKELETON LOADING ===== */
+    .skeleton-grid {
+      margin-bottom: 2rem;
+    }
+
+    .skeleton-card {
+      background: white;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .skeleton-image {
+      height: 200px;
+      background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+    }
+
+    .skeleton-body {
+      padding: 1.25rem;
+    }
+
+    .skeleton-line {
+      height: 12px;
+      background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 6px;
+      margin-bottom: 0.75rem;
+    }
+
+    .skeleton-line.short { width: 40%; }
+    .skeleton-line.medium { width: 70%; }
+
+    .skeleton-price {
+      height: 24px;
+      width: 50%;
+      background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 6px;
+      margin: 1rem 0;
+    }
+
+    .skeleton-button {
+      height: 40px;
+      background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 8px;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* ===== EMPTY STATE ===== */
+    .empty-state-wrapper {
+      display: flex;
+      justify-content: center;
+      padding: 4rem 1rem;
+    }
+
+    .empty-state {
+      text-align: center;
+      max-width: 400px;
+    }
+
+    .empty-icon {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 1.5rem;
+      background: #f1f5f9;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .empty-icon svg {
+      width: 40px;
+      height: 40px;
+      color: #94a3b8;
+    }
+
+    .empty-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-primary, #0f172a);
+      margin: 0 0 0.5rem;
+    }
+
+    .empty-desc {
+      color: var(--text-secondary, #64748b);
+      margin: 0 0 1.5rem;
+      line-height: 1.5;
+    }
+
+    /* ===== PRODUCTS GRID ===== */
     .products-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 1.5rem;
+      gap: 1.25rem;
       margin-bottom: 2rem;
     }
+
+    @media (min-width: 640px) {
+      .products-grid {
+        gap: 1.5rem;
+      }
+    }
+
     .product-card {
+      background: white;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 16px;
+      overflow: hidden;
       display: flex;
       flex-direction: column;
-      overflow: hidden;
-      transition: var(--transition);
-      border: 1px solid var(--border);
+      transition: all 0.3s ease;
     }
+
     .product-card:hover {
       transform: translateY(-4px);
-      box-shadow: var(--shadow-md);
-      border-color: #cbd5e1;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1);
+      border-color: transparent;
     }
+
     .card-image-wrap {
       position: relative;
       height: 200px;
@@ -327,213 +945,444 @@ import { ProductFormModalComponent } from '../product-form-modal/product-form-mo
       align-items: center;
       justify-content: center;
     }
+
     .product-image {
       width: 100%;
       height: 100%;
       object-fit: contain;
       padding: 1rem;
-      transition: var(--transition);
+      transition: transform 0.4s ease;
     }
+
     .product-card:hover .product-image {
       transform: scale(1.05);
     }
+
     .image-fallback {
-      width: 60px;
-      height: 60px;
-      border-radius: var(--radius-full);
-      background: var(--primary-light);
-      color: var(--primary);
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      color: white;
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 1.75rem;
       font-weight: 800;
     }
+
     .stock-badge {
       position: absolute;
       top: 0.75rem;
       right: 0.75rem;
-      background: rgba(15, 23, 42, 0.75);
-      color: #ffffff;
+      background: rgba(15, 23, 42, 0.8);
+      color: white;
       backdrop-filter: blur(4px);
-      font-size: 0.7rem;
+      font-size: 0.6875rem;
       font-weight: 700;
-      padding: 0.2rem 0.5rem;
-      border-radius: var(--radius-full);
+      padding: 0.25rem 0.625rem;
+      border-radius: 9999px;
     }
+
     .stock-badge.out-of-stock {
-      background: rgba(239, 68, 68, 0.85);
+      background: rgba(239, 68, 68, 0.9);
     }
+
     .card-body {
       padding: 1.25rem;
       display: flex;
       flex-direction: column;
       flex: 1;
     }
+
     .product-category {
-      font-size: 0.7rem;
+      font-size: 0.6875rem;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       font-weight: 700;
-      color: var(--primary);
-      margin-bottom: 0.35rem;
+      color: var(--primary, #6366f1);
+      margin-bottom: 0.375rem;
     }
+
     .product-name {
-      font-size: 1.05rem;
+      font-size: 1rem;
       font-weight: 700;
-      color: var(--secondary);
-      margin-bottom: 0.5rem;
+      color: var(--text-primary, #0f172a);
+      margin: 0 0 0.5rem;
       cursor: pointer;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-      line-height: 1.35;
-    }
-    .product-name:hover {
-      color: var(--primary);
-    }
-    .product-desc {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin-bottom: 1rem;
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
       line-height: 1.4;
+      transition: color 0.2s;
+    }
+
+    .product-name:hover {
+      color: var(--primary, #6366f1);
+    }
+
+    .product-desc {
+      font-size: 0.8125rem;
+      color: var(--text-secondary, #64748b);
+      margin: 0 0 1rem;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      line-height: 1.5;
       flex: 1;
     }
+
     .price-row {
       display: flex;
       align-items: baseline;
       justify-content: space-between;
-      margin-bottom: 1.25rem;
+      margin-bottom: 1rem;
+      gap: 0.5rem;
     }
+
     .product-price {
       font-size: 1.25rem;
       font-weight: 800;
-      color: var(--secondary);
+      color: var(--text-primary, #0f172a);
     }
+
+    .currency {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text-secondary, #64748b);
+    }
+
     .branch-tag {
-      font-size: 0.7rem;
-      color: var(--text-light);
-      background: var(--bg-subtle);
-      padding: 0.15rem 0.4rem;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
+      font-size: 0.6875rem;
+      color: var(--text-muted, #94a3b8);
+      background: var(--bg-subtle, #f1f5f9);
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
     }
+
     .card-actions {
       display: flex;
       gap: 0.5rem;
       margin-top: auto;
     }
+
     .add-cart-btn {
       flex: 1;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 0.4rem;
+      gap: 0.5rem;
+      padding: 0.625rem 1rem;
+      font-size: 0.875rem;
+      font-weight: 600;
     }
+
+    .cart-icon {
+      width: 18px;
+      height: 18px;
+    }
+
     .admin-actions {
       display: flex;
-      gap: 0.5rem;
+      gap: 0.375rem;
       width: 100%;
     }
-    .admin-actions .btn {
+
+    .btn-icon-only {
       flex: 1;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 0.25rem;
-      font-size: 0.8125rem;
-      padding: 0.5rem;
+      padding: 0.625rem;
     }
 
-    /* PAGINATION STYLES */
+    .btn-icon-only svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* ===== PAGINATION ===== */
     .pagination-bar {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 1rem 1.5rem;
-      margin-top: 1rem;
-      margin-bottom: 2.5rem;
+      padding: 1rem 1.25rem;
+      background: white;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 12px;
+      margin-bottom: 2rem;
       gap: 1rem;
       flex-wrap: wrap;
-      background: white;
     }
+
     .pagination-info {
       font-size: 0.875rem;
-      color: #64748b;
+      color: var(--text-secondary, #64748b);
     }
+
     .pagination-controls {
       display: flex;
       align-items: center;
-      gap: 0.375rem;
+      gap: 0.25rem;
     }
+
     .page-btn {
-      padding: 0.45rem 0.85rem;
-      border: 1px solid #cbd5e1;
+      min-width: 36px;
+      height: 36px;
+      padding: 0 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border, #e2e8f0);
       background: white;
-      color: #1e293b;
-      border-radius: 6px;
+      color: var(--text-primary, #1e293b);
+      border-radius: 8px;
       font-size: 0.875rem;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s;
     }
-    .page-btn:hover:not(:disabled) {
-      background: #eff6ff;
-      color: #2563eb;
-      border-color: #2563eb;
+
+    .page-btn:hover:not(:disabled):not(.active) {
+      background: #eef2ff;
+      border-color: var(--primary, #6366f1);
+      color: var(--primary, #6366f1);
     }
+
     .page-btn.active {
-      background: #2563eb;
+      background: var(--primary, #6366f1);
+      border-color: var(--primary, #6366f1);
       color: white;
-      border-color: #2563eb;
     }
+
     .page-btn:disabled {
       opacity: 0.4;
       cursor: not-allowed;
     }
-    .page-dots {
-      padding: 0 0.35rem;
-      color: #94a3b8;
-      font-weight: bold;
+
+    .page-btn svg {
+      width: 18px;
+      height: 18px;
     }
+
+    .page-dots {
+      padding: 0 0.25rem;
+      color: var(--text-muted, #94a3b8);
+    }
+
     .page-size-picker {
       display: flex;
       align-items: center;
       gap: 0.5rem;
       font-size: 0.875rem;
-      color: #475569;
+      color: var(--text-secondary, #64748b);
     }
+
     .size-select {
-      padding: 0.35rem 0.6rem;
-      border: 1px solid #cbd5e1;
+      padding: 0.375rem 0.625rem;
+      border: 1px solid var(--border, #e2e8f0);
       border-radius: 6px;
       background: white;
-      outline: none;
       font-size: 0.875rem;
       cursor: pointer;
+    }
+
+    /* ===== DARK THEME ===== */
+    :host-context(body.dark-theme) .page-wrapper,
+    :host-context(.dark-theme) .page-wrapper {
+      background: #0b0f19;
+    }
+
+    :host-context(body.dark-theme) .filter-panel,
+    :host-context(.dark-theme) .filter-panel {
+      background: rgba(21, 30, 50, 0.9);
+      border-color: #22304d;
+    }
+
+    :host-context(body.dark-theme) .search-box,
+    :host-context(.dark-theme) .search-box {
+      background: #0b0f19;
+    }
+
+    :host-context(body.dark-theme) .search-box.focused,
+    :host-context(.dark-theme) .search-box.focused {
+      background: #151e32;
+    }
+
+    :host-context(body.dark-theme) .search-input,
+    :host-context(.dark-theme) .search-input {
+      color: #f8fafc;
+    }
+
+    :host-context(body.dark-theme) .category-chip,
+    :host-context(.dark-theme) .category-chip {
+      background: #1e293b;
+      color: #94a3b8;
+    }
+
+    :host-context(body.dark-theme) .category-chip:hover,
+    :host-context(.dark-theme) .category-chip:hover {
+      background: #312e81;
+      color: #a5b4fc;
+    }
+
+    :host-context(body.dark-theme) .category-chip.active,
+    :host-context(.dark-theme) .category-chip.active {
+      background: #6366f1;
+      color: white;
+    }
+
+    :host-context(body.dark-theme) .select-trigger,
+    :host-context(.dark-theme) .select-trigger {
+      background: #1e293b;
+      border-color: #334155;
+      color: #f8fafc;
+    }
+
+    :host-context(body.dark-theme) .select-options,
+    :host-context(.dark-theme) .select-options {
+      background: #151e32;
+      border-color: #22304d;
+    }
+
+    :host-context(body.dark-theme) .select-option,
+    :host-context(.dark-theme) .select-option {
+      color: #e2e8f0;
+    }
+
+    :host-context(body.dark-theme) .select-option:hover,
+    :host-context(.dark-theme) .select-option:hover {
+      background: #1e293b;
+    }
+
+    :host-context(body.dark-theme) .select-option.selected,
+    :host-context(.dark-theme) .select-option.selected {
+      background: #312e81;
+    }
+
+    :host-context(body.dark-theme) .product-card,
+    :host-context(.dark-theme) .product-card,
+    :host-context(body.dark-theme) .skeleton-card,
+    :host-context(.dark-theme) .skeleton-card {
+      background: #151e32;
+      border-color: #22304d;
+    }
+
+    :host-context(body.dark-theme) .product-card:hover,
+    :host-context(.dark-theme) .product-card:hover {
+      border-color: #3b82f6;
+    }
+
+    :host-context(body.dark-theme) .card-image-wrap,
+    :host-context(.dark-theme) .card-image-wrap {
+      background: #0b0f19;
+    }
+
+    :host-context(body.dark-theme) .product-name,
+    :host-context(.dark-theme) .product-name,
+    :host-context(body.dark-theme) .product-price,
+    :host-context(.dark-theme) .product-price,
+    :host-context(body.dark-theme) .page-title,
+    :host-context(.dark-theme) .page-title {
+      color: #f8fafc;
+    }
+
+    :host-context(body.dark-theme) .pagination-bar,
+    :host-context(.dark-theme) .pagination-bar {
+      background: #151e32;
+      border-color: #22304d;
+    }
+
+    :host-context(body.dark-theme) .page-btn,
+    :host-context(.dark-theme) .page-btn {
+      background: #1e293b;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+
+    :host-context(body.dark-theme) .page-btn:hover:not(:disabled):not(.active),
+    :host-context(.dark-theme) .page-btn:hover:not(:disabled):not(.active) {
+      background: #312e81;
+      border-color: #6366f1;
+    }
+
+    :host-context(body.dark-theme) .filter-bottom-row,
+    :host-context(.dark-theme) .filter-bottom-row,
+    :host-context(body.dark-theme) .active-filters,
+    :host-context(.dark-theme) .active-filters {
+      border-top-color: #22304d;
+    }
+
+    :host-context(body.dark-theme) .results-count,
+    :host-context(.dark-theme) .results-count {
+      color: #f8fafc;
+    }
+
+    :host-context(body.dark-theme) .filter-tag,
+    :host-context(.dark-theme) .filter-tag {
+      background: #312e81;
+      border-color: #4338ca;
+      color: #c7d2fe;
+    }
+
+    :host-context(body.dark-theme) .skeleton-image,
+    :host-context(.dark-theme) .skeleton-image,
+    :host-context(body.dark-theme) .skeleton-line,
+    :host-context(.dark-theme) .skeleton-line,
+    :host-context(body.dark-theme) .skeleton-price,
+    :host-context(.dark-theme) .skeleton-price,
+    :host-context(body.dark-theme) .skeleton-button,
+    :host-context(.dark-theme) .skeleton-button {
+      background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+      background-size: 200% 100%;
+    }
+
+    :host-context(body.dark-theme) .empty-icon,
+    :host-context(.dark-theme) .empty-icon {
+      background: #1e293b;
+    }
+
+    :host-context(body.dark-theme) .empty-title,
+    :host-context(.dark-theme) .empty-title {
+      color: #f8fafc;
     }
   `]
 })
 export class ProductListComponent implements OnInit {
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
   private productService = inject(ProductService);
   private categoryService = inject(CategoryService);
   private cartService = inject(CartService);
   private notification = inject(NotificationService);
+  private destroyRef = inject(DestroyRef);
   authState = inject(AuthStateService);
+
+  Math = Math; // For template usage
 
   products: Product[] = [];
   categories: Category[] = [];
+  categoryCounts: Map<number, number> = new Map();
   isLoading = true;
+  isSearching = false;
+  isScrolled = false;
 
   searchQuery = '';
+  searchFocused = false;
+  private searchSubject = new Subject<string>();
   selectedCategoryId: number | null = null;
   sortBy = 'default';
+  sortDropdownOpen = false;
+
+  sortOptions = [
+    { value: 'default', label: 'Standart', icon: '📋' },
+    { value: 'price-asc', label: 'Narx: Arzondan qimmatga', icon: '💰' },
+    { value: 'price-desc', label: 'Narx: Qimmatdan arzonga', icon: '💎' },
+    { value: 'name', label: 'Nom: A-Z', icon: '🔤' },
+    { value: 'newest', label: 'Yangilari', icon: '✨' }
+  ];
 
   // Server-side Pagination state
   currentPage = 1;
@@ -547,11 +1396,8 @@ export class ProductListComponent implements OnInit {
   editingProduct: Product | null = null;
   addingProductId: number | null = null;
 
-  get emptyActionText(): string {
-    if (this.searchQuery || this.selectedCategoryId !== null) {
-      return 'Filtrni tozalash';
-    }
-    return this.authState.isAdminMode() ? "Mahsulot qo'shish" : '';
+  get hasActiveFilters(): boolean {
+    return !!this.searchQuery || this.selectedCategoryId !== null || this.sortBy !== 'default';
   }
 
   get visiblePages(): number[] {
@@ -565,28 +1411,170 @@ export class ProductListComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    // Read query parameter if redirected from global search
-    this.route.queryParams.subscribe(params => {
-      if (params['q'] !== undefined) {
-        this.searchQuery = params['q'] || '';
-        this.currentPage = 1;
-      }
+    // Listen for scroll to add shadow to filter panel
+    if (typeof window !== 'undefined') {
+      window.addEventListener('scroll', () => {
+        this.isScrolled = window.scrollY > 50;
+      });
+    }
+
+    // Setup debounce for search
+    this.searchSubject.pipe(
+      debounceTime(300),
+      distinctUntilChanged(),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(() => {
+      this.isSearching = false;
+      this.currentPage = 1;
+      this.updateUrlParams();
       this.loadData();
     });
 
-    this.categoryService.getAll().subscribe({
-      next: (cats) => (this.categories = cats),
+    // Read query parameters
+    this.route.queryParams.pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(params => {
+      let shouldLoad = false;
+
+      if (params['q'] !== undefined && params['q'] !== this.searchQuery) {
+        this.searchQuery = params['q'] || '';
+        shouldLoad = true;
+      }
+      if (params['category'] !== undefined) {
+        const catId = params['category'] ? Number(params['category']) : null;
+        if (catId !== this.selectedCategoryId) {
+          this.selectedCategoryId = catId;
+          shouldLoad = true;
+        }
+      }
+      if (params['sort'] !== undefined && params['sort'] !== this.sortBy) {
+        this.sortBy = params['sort'] || 'default';
+        shouldLoad = true;
+      }
+      if (params['page'] !== undefined) {
+        const page = Number(params['page']) || 1;
+        if (page !== this.currentPage) {
+          this.currentPage = page;
+          shouldLoad = true;
+        }
+      }
+
+      if (shouldLoad || !this.products.length) {
+        this.loadData();
+      }
+    });
+
+    // Load categories
+    this.categoryService.getAll().pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: (cats) => {
+        this.categories = (cats || []).filter(c => c.isActive);
+        this.loadCategoryCounts();
+      },
       error: () => {}
+    });
+  }
+
+  loadCategoryCounts(): void {
+    // Load all products to count by category (simplified approach)
+    this.productService.getAll().pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: (products) => {
+        this.categoryCounts.clear();
+        (products || []).forEach(p => {
+          if (p.categoryId) {
+            const count = this.categoryCounts.get(p.categoryId) || 0;
+            this.categoryCounts.set(p.categoryId, count + 1);
+          }
+        });
+      }
+    });
+  }
+
+  getCategoryCount(categoryId: number): number {
+    return this.categoryCounts.get(categoryId) || 0;
+  }
+
+  onSearchInput(value: string): void {
+    this.isSearching = true;
+    this.searchSubject.next(value);
+  }
+
+  clearSearch(): void {
+    this.searchQuery = '';
+    this.isSearching = false;
+    this.currentPage = 1;
+    this.updateUrlParams();
+    this.loadData();
+  }
+
+  selectCategory(categoryId: number | null): void {
+    if (this.selectedCategoryId === categoryId) return;
+    this.selectedCategoryId = categoryId;
+    this.currentPage = 1;
+    this.updateUrlParams();
+    this.loadData();
+  }
+
+  getSelectedCategoryName(): string {
+    if (!this.selectedCategoryId) return '';
+    const cat = this.categories.find(c => c.id === this.selectedCategoryId);
+    return cat ? cat.title : '';
+  }
+
+  toggleSortDropdown(): void {
+    this.sortDropdownOpen = !this.sortDropdownOpen;
+  }
+
+  selectSort(value: string): void {
+    this.sortBy = value;
+    this.sortDropdownOpen = false;
+    this.updateUrlParams();
+    this.applyLocalSort();
+  }
+
+  getSortLabel(value: string): string {
+    const opt = this.sortOptions.find(o => o.value === value);
+    return opt ? opt.label : 'Standart';
+  }
+
+  updateUrlParams(): void {
+    const queryParams: any = {};
+
+    if (this.searchQuery) {
+      queryParams.q = this.searchQuery;
+    }
+    if (this.selectedCategoryId) {
+      queryParams.category = this.selectedCategoryId;
+    }
+    if (this.sortBy !== 'default') {
+      queryParams.sort = this.sortBy;
+    }
+    if (this.currentPage > 1) {
+      queryParams.page = this.currentPage;
+    }
+
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams,
+      queryParamsHandling: '',
+      replaceUrl: true
     });
   }
 
   loadData(): void {
     this.isLoading = true;
+    // BranchManager uchun faqat o'z filiali mahsulotlarini ko'rsatish
+    const branchId = this.authState.isBranchManager() ? this.authState.userBranchId() || undefined : undefined;
+
     this.productService.getPaged(
       this.currentPage,
       this.pageSize,
       this.searchQuery,
-      this.selectedCategoryId || undefined
+      this.selectedCategoryId || undefined,
+      branchId
     ).subscribe({
       next: (res: any) => {
         if (res && res.items) {
@@ -597,7 +1585,6 @@ export class ProductListComponent implements OnInit {
           this.hasNext = res.hasNextPage;
           this.applyLocalSort();
         } else if (Array.isArray(res)) {
-          // Fallback if backend returned array
           this.products = res;
           this.totalItems = res.length;
           this.totalPages = Math.ceil(res.length / this.pageSize) || 1;
@@ -609,9 +1596,19 @@ export class ProductListComponent implements OnInit {
         this.productService.getAll().subscribe({
           next: (all) => {
             let list = all || [];
+            // BranchManager uchun faqat o'z filiali mahsulotlarini ko'rsatish
+            if (this.authState.isBranchManager()) {
+              const userBranchId = this.authState.userBranchId();
+              if (userBranchId) {
+                list = list.filter(p => p.companyBranchId === userBranchId);
+              }
+            }
             if (this.searchQuery) {
               const q = this.searchQuery.toLowerCase();
-              list = list.filter(p => p.name.toLowerCase().includes(q) || (p.description && p.description.toLowerCase().includes(q)));
+              list = list.filter(p =>
+                p.name.toLowerCase().includes(q) ||
+                (p.description && p.description.toLowerCase().includes(q))
+              );
             }
             if (this.selectedCategoryId) {
               list = list.filter(p => p.categoryId === this.selectedCategoryId);
@@ -633,15 +1630,6 @@ export class ProductListComponent implements OnInit {
     });
   }
 
-  onFilterChange(): void {
-    this.currentPage = 1;
-    this.loadData();
-  }
-
-  onSortChange(): void {
-    this.applyLocalSort();
-  }
-
   applyLocalSort(): void {
     if (this.sortBy === 'price-asc') {
       this.products.sort((a, b) => a.price - b.price);
@@ -649,12 +1637,15 @@ export class ProductListComponent implements OnInit {
       this.products.sort((a, b) => b.price - a.price);
     } else if (this.sortBy === 'name') {
       this.products.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (this.sortBy === 'newest') {
+      this.products.sort((a, b) => b.id - a.id);
     }
   }
 
   goToPage(p: number): void {
     if (p < 1 || p > this.totalPages || p === this.currentPage) return;
     this.currentPage = p;
+    this.updateUrlParams();
     this.loadData();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -674,6 +1665,7 @@ export class ProductListComponent implements OnInit {
   onPageSizeChange(newSize: string | number): void {
     this.pageSize = Number(newSize);
     this.currentPage = 1;
+    this.updateUrlParams();
     this.loadData();
   }
 
@@ -757,6 +1749,7 @@ export class ProductListComponent implements OnInit {
     this.selectedCategoryId = null;
     this.sortBy = 'default';
     this.currentPage = 1;
+    this.updateUrlParams();
     this.loadData();
   }
 }

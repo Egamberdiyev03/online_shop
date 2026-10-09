@@ -1,4 +1,4 @@
-﻿using Application.DTOs.Auth;
+using Application.DTOs.Auth;
 using Application.Extentions;
 using Application.Interfaces;
 using DataAccess.Repositories;
@@ -104,6 +104,46 @@ namespace Application.Services
             return new(_tokenService.GenerateToken(user));
         }
 
+        public async Task<ResponseModel<string>> ForgotPasswordAsync(ForgotPasswordDto dto)
+        {
+            var user = _userRepo.GetAsQueryable()
+                .FirstOrDefault(u => u.Email == dto.Email);
 
+            if (user == null)
+                return new("Ushbu email bilan ro'yxatdan o'tgan foydalanuvchi topilmadi.", HttpStatusCode.NotFound);
+
+            var code = GenerateOtpCode();
+            user.EmailConfirmationCode = code;
+            user.EmailConfirmationCodeExpiry = DateTime.UtcNow.AddMinutes(10);
+
+            await _userRepo.SaveChangesAsync();
+
+            await _emailService.SendOtpCodeAsync(user.Email, code);
+
+            return new("Tasdiqlash kodi emailingizga muvaffaqiyatli yuborildi.");
+        }
+
+        public async Task<ResponseModel<string>> ResetPasswordAsync(ResetPasswordDto dto)
+        {
+            var user = _userRepo.GetAsQueryable()
+                .FirstOrDefault(u => u.Email == dto.Email);
+
+            if (user == null)
+                return new("Foydalanuvchi topilmadi.", HttpStatusCode.NotFound);
+
+            if (string.IsNullOrWhiteSpace(user.EmailConfirmationCode) || user.EmailConfirmationCode != dto.Code)
+                return new("Tasdiqlash kodi noto'g'ri.", HttpStatusCode.Unauthorized);
+
+            if (user.EmailConfirmationCodeExpiry < DateTime.UtcNow)
+                return new("Kodning amal qilish muddati tugagan. Yangi kod so'rang.", HttpStatusCode.Unauthorized);
+
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+            user.EmailConfirmationCode = null;
+            user.EmailConfirmationCodeExpiry = null;
+
+            await _userRepo.SaveChangesAsync();
+
+            return new("Parolingiz muvaffaqiyatli yangilandi. Yangi parol bilan tizimga kirishingiz mumkin.");
+        }
     }
 }

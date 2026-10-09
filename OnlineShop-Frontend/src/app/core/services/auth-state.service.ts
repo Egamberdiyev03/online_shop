@@ -70,7 +70,7 @@ export class AuthStateService {
       const parsed = parseInt(saved, 10);
       if (!isNaN(parsed) && parsed > 0) return parsed;
     }
-    return 1;
+    return 0;
   }
 
   private getInitialAdminMode(): boolean {
@@ -157,7 +157,7 @@ export class AuthStateService {
       this.setCustomerId(userId);
     }
 
-    const isAdmin = auth.role === 'SuperAdmin' || auth.role === 'CompanyAdmin';
+    const isAdmin = auth.role === 'SuperAdmin' || auth.role === 'CompanyAdmin' || auth.role === 'BranchManager';
     this.isAdminMode.set(isAdmin);
     localStorage.setItem(this.ADMIN_MODE_KEY, String(isAdmin));
   }
@@ -172,7 +172,7 @@ export class AuthStateService {
     localStorage.removeItem(this.CUSTOMER_ID_KEY);
     localStorage.removeItem(this.ADMIN_MODE_KEY);
 
-    this.currentCustomerId.set(1);
+    this.currentCustomerId.set(0);
     this.isAdminMode.set(false);
   }
 

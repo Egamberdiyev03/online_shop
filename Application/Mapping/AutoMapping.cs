@@ -1,4 +1,4 @@
-﻿using Application.DTOs.Comment;
+using Application.DTOs.Comment;
 using Application.DTOs.Company;
 using Application.DTOs.CompanyBranch;
 using Application.DTOs.User;
@@ -23,10 +23,11 @@ namespace Application.Mapping
         {
             CreateMap<CreateCompanyDto, Company>().ReverseMap();
             CreateMap<Company, CompanyDto>().ReverseMap();
+            CreateMap<UpdateCompanyDto, Company>().ReverseMap();
 
             CreateMap<CompanyBranch, CreateCompanyBranchDto>().ReverseMap();
             CreateMap<CompanyBranch, CompanyBranchDto>().ReverseMap();
-            CreateMap<UpdateCompanyBranchDto, CompanyBranch>();
+            CreateMap<UpdateCompanyBranchDto, CompanyBranch>().ReverseMap();
 
             CreateMap<UserDto, User>().ReverseMap();
             CreateMap<CreateUserDto, User>().ReverseMap();
@@ -43,8 +44,9 @@ namespace Application.Mapping
             CreateMap<UpdateProductDto, Product>().ReverseMap();
 
             CreateMap<CreatePaymentDto, Payment>().ReverseMap();
+            CreateMap<Payment, PaymentDto>().ReverseMap();
 
-            CreateMap<CreateCommentDto, Comment>();
+            CreateMap<CreateCommentDto, Comment>().ReverseMap();
             CreateMap<CommentDto, Comment>().ReverseMap(); 
 
         }

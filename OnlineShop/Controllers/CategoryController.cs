@@ -2,6 +2,7 @@
 using Application.Extentions;
 using Application.Interfaces;
 using Application.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace OnlineShop.Controllers
@@ -19,6 +20,7 @@ namespace OnlineShop.Controllers
             _categoryService = categoryService;
         }
 
+        [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpPost("Create")]
         public async Task<CategoryDto>  CreateCategory (CreateCategoryDto dto)
         {
@@ -30,19 +32,21 @@ namespace OnlineShop.Controllers
         {
            return await _categoryService.GetById(id);
         }
-
+     
         [HttpGet("GetAll")]
         public async Task<List<CategoryDto>> GetAll()
         {
           return await  _categoryService.GetAll();
         }
 
+        [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpPut("Update")]
         public async Task<ResponseModel<CategoryDto>> UpdateCategory (UpdateCategoryDto dto)
         {
            return await _categoryService.UpdateCategory(dto);
         }
 
+        [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpDelete("Delete")]
         public async Task<bool> DeleteCategory (int id)
         {

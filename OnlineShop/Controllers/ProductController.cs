@@ -2,6 +2,7 @@ using Application.DTOs.Product;
 using Application.Extentions;
 using Application.Interfaces;
 using Application.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace OnlineShop.Controllers
@@ -17,6 +18,7 @@ namespace OnlineShop.Controllers
             _service = service;
         }
 
+        [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpPost("Create")]
         public async Task<ProductDto> CreateProduct (CreateProductDto dto)
         {
@@ -45,13 +47,15 @@ namespace OnlineShop.Controllers
         {
             return await _service.GetPagedProducts(pageNumber, pageSize, search, categoryId, branchId);
         }
-        
+
+        [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpPut("Update")]
         public async Task<ResponseModel<ProductDto>> UpdateProduct(UpdateProductDto dto)
         {
           return await _service.UpdateProduct(dto);
         }
 
+        [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpDelete("Delete")]
         public async Task<bool> DeleteProduct (int id)
         {

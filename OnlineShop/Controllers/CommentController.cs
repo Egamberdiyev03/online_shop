@@ -2,6 +2,7 @@
 using Application.Extentions;
 using Application.Interfaces;
 using Application.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace OnlineShop.Controllers
@@ -27,18 +28,22 @@ namespace OnlineShop.Controllers
         {
           return  await _commentService.GetCommentById(id);
         }
+
+        [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpGet("GetAll")]
         public async Task<List<CommentDto>> GetAllComment ()
         {
           return await  _commentService.GetAllComment();
         }
 
+        [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpPut("Update")]
         public async Task<ResponseModel<CommentDto>> UpdateComment(UpdateCommentDto dto)
         {
              return await  _commentService.UpdateComment(dto);
         }
 
+        [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpDelete("Delete")]
         public async Task<bool> DeleteComment(int id)
         {

@@ -1,4 +1,4 @@
-﻿using Application.DTOs.Category;
+using Application.DTOs.Category;
 using Application.Extentions;
 using Application.Interfaces;
 using DataAccess.Repositories;
@@ -46,16 +46,16 @@ namespace Application.Services
         public async Task<List<CategoryDto>> GetAll()
         {
             var categories = await _repository.GetAsQueryable()
-                .Where(c => c.IsActive == true)
+                .OrderBy(c => c.Id)
                 .Select(c => new CategoryDto
                 {
                     Id = c.Id,
                     Title = c.Title,
                     Description = c.Description,
-                    isActive=c.IsActive
+                    isActive = c.IsActive
                 }).ToListAsync();
 
-            if(categories==null || categories.Count==0)
+            if (categories == null || categories.Count == 0)
                 return new List<CategoryDto>();
 
             return categories;

@@ -32,5 +32,17 @@ namespace OnlineShop.Controllers
         {
              return await _authService.LoginAsync(dto);
         }
+
+        [HttpPost("ForgotPassword")]
+        public async Task<ResponseModel<string>> ForgotPassword(ForgotPasswordDto dto)
+        {
+            return await _authService.ForgotPasswordAsync(dto);
+        }
+
+        [HttpPost("ResetPassword")]
+        public async Task<ResponseModel<string>> ResetPassword(ResetPasswordDto dto)
+        {
+            return await _authService.ResetPasswordAsync(dto);
+        }
     }
 }

@@ -23,6 +23,8 @@ export interface OrderItem {
   unitPrice: number;
 }
 
+import { Payment } from './payment.model';
+
 export interface Order {
   id: number;
   customerId: number;
@@ -32,9 +34,16 @@ export interface Order {
   totalPrice: number;
   status: OrderStatus;
   orderItems: OrderItem[];
+  deliveryAddress?: string;
+  deliveryLatitude?: number;
+  deliveryLongitude?: number;
+  payment?: Payment;
 }
 
 export interface CreateOrderDto {
   customerId: number;
   branchId: number;
+  deliveryAddress?: string;
+  deliveryLatitude?: number;
+  deliveryLongitude?: number;
 }

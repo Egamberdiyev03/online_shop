@@ -243,6 +243,10 @@ namespace DataAccess.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("BranchId")
+                        .HasColumnType("integer")
+                        .HasColumnName("branch_id");
+
                     b.Property<int>("CompanyBranchId")
                         .HasColumnType("integer")
                         .HasColumnName("company_branch_id");
@@ -329,6 +333,22 @@ namespace DataAccess.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric")
+                        .HasColumnName("amount");
+
+                    b.Property<string>("ChekUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("chek_url");
+
+                    b.Property<DateTime?>("ConfirmedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("confirmed_at");
+
+                    b.Property<int?>("ConfirmedByUserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("confirmed_by_user_id");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -337,9 +357,22 @@ namespace DataAccess.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("order_id");
 
+                    b.Property<string>("PaymentMethod")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("payment_method");
+
+                    b.Property<string>("RejectionReason")
+                        .HasColumnType("text")
+                        .HasColumnName("rejection_reason");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer")
                         .HasColumnName("status");
+
+                    b.Property<string>("TransactionNote")
+                        .HasColumnType("text")
+                        .HasColumnName("transaction_note");
 
                     b.HasKey("Id")
                         .HasName("pk_payments");

@@ -2,6 +2,7 @@ using Application.DTOs.User;
 using Application.Extentions;
 using Application.Interfaces;
 using Application.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
 
@@ -25,7 +26,8 @@ namespace OnlineShop.Controllers
         [HttpGet("GetById")]
         public async Task<ResponseModel<UserDto>> GetUserById (int id) 
               => await _service.GetUserById(id);
-        
+
+        [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpGet("GetAll")]
         public async Task<List<UserDto>> GetAllUser()
               => await _service.GetAllUser();
@@ -33,23 +35,29 @@ namespace OnlineShop.Controllers
         [HttpPut("Update")]
         public async Task<ResponseModel<UserDto>> UpdateUser(UpdateUserDto dto)
              =>   await _service.UpdateUser(dto);
-        
+
+
+        [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpDelete("Delete")]
         public async Task<ResponseModel<bool>> DeleteUser(int id)
              => await _service.DeleteUser(id);
 
+        [Authorize(Roles = "SuperAdmin")]
         [HttpPost("AssignCompanyAdmin")]
         public async Task<ResponseModel<bool>> AssignCompanyAdmin(int userId, int companyId)
              => await _service.AssignCompanyAdmin(userId, companyId);
              
+        [Authorize(Roles = "SuperAdmin")]
         [HttpPost("RemoveCompanyAdmin")]
         public async Task<ResponseModel<bool>> RemoveCompanyAdmin(int userId)
              => await _service.RemoveCompanyAdmin(userId);
 
+        [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpPost("AssignBranchManager")]
         public async Task<ResponseModel<bool>> AssignBranchManager(int userId, int branchId)
              => await _service.AssignBranchManager(userId, branchId);
 
+        [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpPost("RemoveBranchManager")]
         public async Task<ResponseModel<bool>> RemoveBranchManager(int userId)
              => await _service.RemoveBranchManager(userId);

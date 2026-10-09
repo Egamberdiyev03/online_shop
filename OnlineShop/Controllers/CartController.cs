@@ -1,6 +1,7 @@
 ﻿using Application.DTOs.Cart;
 using Application.Extentions;
 using Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace OnlineShop.Controllers
@@ -26,12 +27,15 @@ namespace OnlineShop.Controllers
         {
            return await _cartService.GetCartByIdAsync(id);
         }
+
+        [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpGet("GetAll")] 
         public async Task<ResponseModel<List<CartDto>>> Getall ()
         {
             return await _cartService.GetAllCartsAsync();
         }
 
+        [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpDelete("Delete")]
         public async Task<bool> DeleteCart(int id)
         {
@@ -43,6 +47,7 @@ namespace OnlineShop.Controllers
         {
           return await  _cartService.AddItemToCartAsync(UserId, productId, quantity);
         }
+
 
         [HttpGet("GetByCustomerIdCart")]
         public Task<ResponseModel<CartDto>> GetByUserIdCart(int UserId)

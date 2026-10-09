@@ -1,5 +1,6 @@
 import { AdminDashboardComponent } from './features/admin/admin-dashboard/admin-dashboard.component';
 import { Routes } from '@angular/router';
+import { customerGuard, superAdminGuard, adminGuard, authGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
   {
@@ -17,7 +18,8 @@ export const routes: Routes = [
   },
   {
     path: 'cart',
-    loadComponent: () => import('./features/cart/cart-view/cart-view.component').then(m => m.CartViewComponent)
+    loadComponent: () => import('./features/cart/cart-view/cart-view.component').then(m => m.CartViewComponent),
+    canActivate: [customerGuard]
   },
   {
     path: 'orders',
@@ -25,7 +27,8 @@ export const routes: Routes = [
   },
   {
     path: 'categories',
-    loadComponent: () => import('./features/categories/category-list/category-list.component').then(m => m.CategoryListComponent)
+    loadComponent: () => import('./features/categories/category-list/category-list.component').then(m => m.CategoryListComponent),
+    canActivate: [superAdminGuard]
   },
   {
     path: 'companies',
@@ -40,8 +43,13 @@ export const routes: Routes = [
     loadComponent: () => import('./features/companies/branch-detail/branch-detail.component').then(m => m.BranchDetailComponent)
   },
   {
+    path: 'map',
+    loadComponent: () => import('./features/map/branches-map/branches-map.component').then(m => m.BranchesMapComponent)
+  },
+  {
     path: 'customers',
-    loadComponent: () => import('./features/customers/customer-list/customer-list.component').then(m => m.CustomerListComponent)
+    loadComponent: () => import('./features/customers/customer-list/customer-list.component').then(m => m.CustomerListComponent),
+    canActivate: [superAdminGuard]
   },
   {
     path: 'login',
@@ -57,7 +65,8 @@ export const routes: Routes = [
   },
   {
     path: 'profile',
-    loadComponent: () => import('./features/profile/profile.component').then(m => m.ProfileComponent)
+    loadComponent: () => import('./features/profile/profile.component').then(m => m.ProfileComponent),
+    canActivate: [authGuard]
   },
   {
     path: 'payments',
@@ -71,7 +80,8 @@ export const routes: Routes = [
   },
   {
     path: 'admin',
-    component: AdminDashboardComponent
+    component: AdminDashboardComponent,
+    canActivate: [adminGuard]
   },
   {
     path: '**',
