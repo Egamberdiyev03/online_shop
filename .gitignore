@@ -366,3 +366,7 @@ FodyWeavers.xsd
 dist/
 .angular/
 .env
+.claude/
+OnlineShop/appsettings.json
+appsettings.Development.json
+OnlineShop/wwwroot/Receipts/
