@@ -87,6 +87,16 @@ import { ThemeService } from '../../core/services/theme.service';
               Buyurtmalar
             </a>
 
+            <!-- To'lovlarim - faqat mijozlar uchun -->
+            <a
+              *ngIf="authState.isAuthenticated() && !authState.isAdminRole()"
+              routerLink="/payments"
+              routerLinkActive="active"
+              class="nav-link"
+            >
+              To‘lovlarim
+            </a>
+
             <!-- Xarita - barcha foydalanuvchilar uchun -->
             <a routerLink="/map" routerLinkActive="active" class="nav-link">
               Xarita
@@ -110,6 +120,16 @@ import { ThemeService } from '../../core/services/theme.service';
               class="nav-link"
             >
               Mening Filialim
+            </a>
+
+            <!-- To'lovlar - barcha admin rollari uchun -->
+            <a
+              *ngIf="authState.isAdminRole()"
+              routerLink="/admin/payments"
+              routerLinkActive="active"
+              class="nav-link"
+            >
+              💳 To‘lovlar
             </a>
 
             <!-- Admin Panel - barcha admin rollari uchun -->

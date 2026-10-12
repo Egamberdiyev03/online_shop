@@ -10,8 +10,11 @@ import { ProductService } from '../../../core/services/product.service';
 import { CategoryService } from '../../../core/services/category.service';
 import { CartService } from '../../../core/services/cart.service';
 import { AuthStateService } from '../../../core/services/auth-state.service';
+import { CompanyService } from '../../../core/services/company.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { ProductFormModalComponent } from '../product-form-modal/product-form-modal.component';
+import { StatCardComponent } from '../../../shared/components/dashboard/stat-card/stat-card.component';
+import { ChartCardComponent, DonutSlice } from '../../../shared/components/dashboard/chart-card/chart-card.component';
 
 @Component({
   selector: 'app-product-list',
@@ -20,7 +23,9 @@ import { ProductFormModalComponent } from '../product-form-modal/product-form-mo
     CommonModule,
     RouterModule,
     FormsModule,
-    ProductFormModalComponent
+    ProductFormModalComponent,
+    StatCardComponent,
+    ChartCardComponent
   ],
   template: `
     <div class="page-wrapper">
@@ -38,14 +43,139 @@ import { ProductFormModalComponent } from '../product-form-modal/product-form-mo
             </p>
           </div>
 
-          <button
-            *ngIf="authState.isAdminMode()"
-            class="btn btn-primary add-product-btn"
-            (click)="openCreateModal()"
-          >
-            <span class="btn-icon">+</span>
-            <span>Yangi Mahsulot</span>
-          </button>
+          <div class="header-action-group">
+            <button
+              *ngIf="canViewAnalytics"
+              class="btn btn-secondary analytics-btn"
+              (click)="toggleAnalytics()"
+              type="button"
+            >
+              <span class="btn-icon">📊</span>
+              <span>{{ showAnalytics ? 'Analitikani yopish' : 'Katalog & Ombor Analitikasi' }}</span>
+            </button>
+
+            <button
+              *ngIf="authState.isAdminMode()"
+              class="btn btn-primary add-product-btn"
+              (click)="openCreateModal()"
+            >
+              <span class="btn-icon">+</span>
+              <span>Yangi Mahsulot</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Analytics Section -->
+        <div class="analytics-panel" *ngIf="showAnalytics && canViewAnalytics">
+          <div class="analytics-kpi-grid">
+            <app-stat-card
+              label="Jami Mahsulotlar"
+              icon="📦"
+              [value]="totalAllProducts || totalItems"
+              unit="ta"
+              [growth]="12"
+              timeframe="katalogda"
+              theme="blue"
+            ></app-stat-card>
+            <app-stat-card
+              label="Zaxirada Yetarli (>20)"
+              icon="✅"
+              [value]="inStockCount"
+              unit="ta"
+              [growth]="8"
+              timeframe="faol sotuvda"
+              theme="emerald"
+            ></app-stat-card>
+            <app-stat-card
+              label="Kam Qolgan (10-20)"
+              icon="⚠️"
+              [value]="lowStockCount"
+              unit="ta"
+              [growth]="-4"
+              timeframe="kamaymoqda"
+              theme="amber"
+            ></app-stat-card>
+            <app-stat-card
+              label="Kritik Qoldiq (<10)"
+              icon="🚨"
+              [value]="criticalStockCount"
+              unit="ta"
+              [growth]="-18"
+              timeframe="shoshilinch to'ldirish"
+              theme="red"
+            ></app-stat-card>
+          </div>
+
+          <div class="analytics-charts-grid">
+            <app-chart-card
+              type="donut"
+              title="Ombor Zaxirasi Holati"
+              subtitle="Mahsulotlarning zaxira darajasi bo'yicha taqsimoti"
+              [donutSlices]="stockDonutSlices"
+            ></app-chart-card>
+            <app-chart-card
+              type="donut"
+              title="Kategoriyalar Taqsimoti"
+              subtitle="Katalogdagi mahsulotlar ulushi"
+              [donutSlices]="categoryChartSlices"
+            ></app-chart-card>
+          </div>
+        </div>
+
+        <!-- 1. Category Cards Overview -->
+        <div class="category-cards-section" *ngIf="categories.length > 0">
+          <div class="category-section-header">
+            <h3 class="category-section-title">Kategoriyalar bo'yicha saralash</h3>
+            <span class="category-section-sub">Tezkor kategoriya tanlash va mahsulot ulushlari</span>
+          </div>
+          <div class="cat-cards-scroll">
+            <!-- All Categories Card -->
+            <div
+              class="cat-overview-card"
+              [class.active]="selectedCategoryId === null"
+              (click)="selectCategory(null)"
+            >
+              <div class="cat-card-header">
+                <span class="cat-icon-bubble">🏪</span>
+                <span class="cat-badge-pill">Barchasi</span>
+              </div>
+              <div class="cat-card-body">
+                <h4 class="cat-title">Barcha Mahsulotlar</h4>
+                <div class="cat-count-line">
+                  <span class="cat-count-num">{{ totalItems }}</span>
+                  <span class="cat-count-unit">mahsulot</span>
+                </div>
+              </div>
+              <div class="cat-progress-wrap">
+                <div class="cat-progress-bar" style="width: 100%;"></div>
+              </div>
+              <div class="cat-pct-label">100% qamrov</div>
+            </div>
+
+            <!-- Dynamic Category Cards -->
+            <div
+              *ngFor="let cat of categories"
+              class="cat-overview-card"
+              [class.active]="selectedCategoryId === cat.id"
+              (click)="selectCategory(cat.id)"
+            >
+              <div class="cat-card-header">
+                <span class="cat-icon-bubble">{{ getCategoryIcon(cat.title) }}</span>
+                <span class="cat-badge-pill" *ngIf="getCategoryPercent(cat.id) >= 20">Ommabop</span>
+              </div>
+              <div class="cat-card-body">
+                <h4 class="cat-title">{{ cat.title }}</h4>
+                <div class="cat-count-line">
+                  <span class="cat-count-num">{{ getCategoryCount(cat.id) }}</span>
+                  <span class="cat-count-unit">mahsulot</span>
+                </div>
+              </div>
+              <div class="cat-progress-wrap">
+                <div class="cat-progress-bar" [style.width.%]="getCategoryPercent(cat.id)"></div>
+              </div>
+              <div class="cat-pct-label">{{ getCategoryPercent(cat.id) }}% ulush</div>
+            </div>
+          </div>
         </div>
 
         <!-- Sticky Filter Panel -->
@@ -221,9 +351,39 @@ import { ProductFormModalComponent } from '../product-form-modal/product-form-mo
               <div *ngIf="!product.image" class="image-fallback">
                 <span>{{ product.name.charAt(0).toUpperCase() }}</span>
               </div>
-              <span class="stock-badge" [class.out-of-stock]="product.quantity <= 0">
-                {{ product.quantity > 0 ? product.quantity + ' dona' : 'Tugagan' }}
+
+              <!-- Category Badge -->
+              <span class="card-cat-badge" *ngIf="getCategoryTitle(product.categoryId)">
+                {{ getCategoryTitle(product.categoryId) }}
               </span>
+
+              <!-- Semantic Stock Badge (>20 Green, 10-20 Yellow, <10 Red, 0 Gray) -->
+              <span class="stock-badge" [ngClass]="getStockBadgeClass(product.quantity)">
+                {{ getStockBadgeLabel(product.quantity) }}
+              </span>
+
+              <!-- Quick Hover Actions -->
+              <div class="card-hover-actions" (click)="$event.stopPropagation()">
+                <a [routerLink]="['/products', product.id]" class="quick-act-btn" title="Batafsil ko'rish">
+                  👁️
+                </a>
+                <button
+                  *ngIf="authState.canUseCart() && product.quantity > 0"
+                  class="quick-act-btn cart-act"
+                  (click)="addToCart(product)"
+                  title="Savatga qo'shish"
+                >
+                  🛒
+                </button>
+                <button
+                  *ngIf="authState.isAdminMode() || authState.isAdminRole()"
+                  class="quick-act-btn edit-act"
+                  (click)="openEditModal(product)"
+                  title="Tahrirlash"
+                >
+                  ✏️
+                </button>
+              </div>
             </div>
 
             <div class="card-body">
@@ -414,6 +574,204 @@ import { ProductFormModalComponent } from '../product-form-modal/product-form-mo
     .btn-icon {
       font-size: 1.25rem;
       line-height: 1;
+    }
+
+    .header-action-group {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .analytics-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.625rem 1.15rem;
+      font-weight: 600;
+      border-radius: 10px;
+    }
+
+    /* ===== ANALYTICS PANEL ===== */
+    .analytics-panel {
+      margin-bottom: 2rem;
+      padding: 1.5rem;
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 20px;
+      box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+      animation: fadeIn 0.3s ease;
+    }
+
+    .analytics-kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .analytics-charts-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.25rem;
+    }
+
+    @media (min-width: 900px) {
+      .analytics-charts-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    /* ===== CATEGORY CARDS SECTION ===== */
+    .category-cards-section {
+      margin-bottom: 1.75rem;
+    }
+
+    .category-section-header {
+      margin-bottom: 0.875rem;
+    }
+
+    .category-section-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-primary, #0f172a);
+      margin: 0;
+    }
+
+    .category-section-sub {
+      font-size: 0.8125rem;
+      color: var(--text-secondary, #64748b);
+    }
+
+    .cat-cards-scroll {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 0.875rem;
+      overflow-x: auto;
+      padding-bottom: 0.5rem;
+    }
+
+    @media (max-width: 768px) {
+      .cat-cards-scroll {
+        display: flex;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        padding-bottom: 0.75rem;
+      }
+      .cat-overview-card {
+        flex: 0 0 200px;
+        scroll-snap-align: start;
+      }
+    }
+
+    .cat-overview-card {
+      background: #ffffff;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 1rem;
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 120px;
+    }
+
+    .cat-overview-card:hover {
+      transform: translateY(-3px);
+      border-color: #6366f1;
+      box-shadow: 0 8px 18px rgba(99, 102, 241, 0.12);
+    }
+
+    .cat-overview-card.active {
+      border-color: #6366f1;
+      background: #f5f3ff;
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+    }
+
+    .cat-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .cat-icon-bubble {
+      font-size: 1.35rem;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: #f1f5f9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .cat-overview-card.active .cat-icon-bubble {
+      background: #e0e7ff;
+    }
+
+    .cat-badge-pill {
+      font-size: 0.6875rem;
+      font-weight: 700;
+      color: #6366f1;
+      background: #e0e7ff;
+      padding: 0.15rem 0.45rem;
+      border-radius: 999px;
+    }
+
+    .cat-card-body {
+      margin-bottom: 0.5rem;
+    }
+
+    .cat-title {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: var(--text-primary, #0f172a);
+      margin: 0 0 0.2rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .cat-count-line {
+      display: flex;
+      align-items: baseline;
+      gap: 0.25rem;
+    }
+
+    .cat-count-num {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--text-primary, #0f172a);
+    }
+
+    .cat-count-unit {
+      font-size: 0.75rem;
+      color: var(--text-secondary, #64748b);
+      font-weight: 500;
+    }
+
+    .cat-progress-wrap {
+      height: 6px;
+      background: #e2e8f0;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-bottom: 0.35rem;
+    }
+
+    .cat-progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #6366f1, #8b5cf6);
+      border-radius: 999px;
+      transition: width 0.4s ease;
+    }
+
+    .cat-pct-label {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      color: var(--text-secondary, #64748b);
+      text-align: right;
     }
 
     /* ===== STICKY FILTER PANEL ===== */
@@ -926,18 +1284,18 @@ import { ProductFormModalComponent } from '../product-form-modal/product-form-mo
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      transition: all 0.3s ease;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     .product-card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1);
-      border-color: transparent;
+      transform: translateY(-6px);
+      box-shadow: 0 16px 36px rgba(15, 23, 42, 0.12);
+      border-color: #cbd5e1;
     }
 
     .card-image-wrap {
       position: relative;
-      height: 200px;
+      height: 210px;
       background: #f8fafc;
       overflow: hidden;
       cursor: pointer;
@@ -951,11 +1309,11 @@ import { ProductFormModalComponent } from '../product-form-modal/product-form-mo
       height: 100%;
       object-fit: contain;
       padding: 1rem;
-      transition: transform 0.4s ease;
+      transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     .product-card:hover .product-image {
-      transform: scale(1.05);
+      transform: scale(1.08);
     }
 
     .image-fallback {
@@ -971,21 +1329,106 @@ import { ProductFormModalComponent } from '../product-form-modal/product-form-mo
       font-weight: 800;
     }
 
+    .card-cat-badge {
+      position: absolute;
+      top: 0.75rem;
+      left: 0.75rem;
+      background: rgba(15, 23, 42, 0.75);
+      color: #ffffff;
+      backdrop-filter: blur(6px);
+      font-size: 0.6875rem;
+      font-weight: 700;
+      padding: 0.25rem 0.6rem;
+      border-radius: 9999px;
+      z-index: 2;
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
     .stock-badge {
       position: absolute;
       top: 0.75rem;
       right: 0.75rem;
-      background: rgba(15, 23, 42, 0.8);
-      color: white;
-      backdrop-filter: blur(4px);
+      z-index: 2;
       font-size: 0.6875rem;
       font-weight: 700;
       padding: 0.25rem 0.625rem;
       border-radius: 9999px;
+      backdrop-filter: blur(4px);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.12);
     }
 
-    .stock-badge.out-of-stock {
-      background: rgba(239, 68, 68, 0.9);
+    .stock-badge.stock-green {
+      background: rgba(16, 185, 129, 0.92);
+      color: white;
+    }
+
+    .stock-badge.stock-yellow {
+      background: rgba(245, 158, 11, 0.95);
+      color: white;
+    }
+
+    .stock-badge.stock-red {
+      background: rgba(239, 68, 68, 0.95);
+      color: white;
+      animation: pulseAlert 2s infinite;
+    }
+
+    .stock-badge.stock-out {
+      background: rgba(100, 116, 139, 0.95);
+      color: white;
+    }
+
+    @keyframes pulseAlert {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.85; transform: scale(1.04); }
+    }
+
+    .card-hover-actions {
+      position: absolute;
+      bottom: 0.75rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      display: flex;
+      gap: 0.5rem;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      padding: 0.35rem 0.65rem;
+      border-radius: 999px;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 3;
+    }
+
+    .product-card:hover .card-hover-actions {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .quick-act-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.15);
+      border: none;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .quick-act-btn:hover {
+      background: white;
+      color: #0f172a;
+      transform: scale(1.1);
     }
 
     .card-body {
@@ -1348,6 +1791,48 @@ import { ProductFormModalComponent } from '../product-form-modal/product-form-mo
     :host-context(.dark-theme) .empty-title {
       color: #f8fafc;
     }
+
+    :host-context(body.dark-theme) .analytics-panel,
+    :host-context(.dark-theme) .analytics-panel {
+      background: #151e32;
+      border-color: #22304d;
+    }
+
+    :host-context(body.dark-theme) .cat-overview-card,
+    :host-context(.dark-theme) .cat-overview-card {
+      background: #151e32;
+      border-color: #22304d;
+    }
+
+    :host-context(body.dark-theme) .cat-overview-card:hover,
+    :host-context(.dark-theme) .cat-overview-card:hover {
+      border-color: #6366f1;
+    }
+
+    :host-context(body.dark-theme) .cat-overview-card.active,
+    :host-context(.dark-theme) .cat-overview-card.active {
+      background: #1e1b4b;
+      border-color: #6366f1;
+    }
+
+    :host-context(body.dark-theme) .cat-icon-bubble,
+    :host-context(.dark-theme) .cat-icon-bubble {
+      background: #0b0f19;
+    }
+
+    :host-context(body.dark-theme) .cat-title,
+    :host-context(body.dark-theme) .cat-count-num,
+    :host-context(.dark-theme) .cat-title,
+    :host-context(.dark-theme) .cat-count-num,
+    :host-context(body.dark-theme) .category-section-title,
+    :host-context(.dark-theme) .category-section-title {
+      color: #f8fafc;
+    }
+
+    :host-context(body.dark-theme) .cat-progress-wrap,
+    :host-context(.dark-theme) .cat-progress-wrap {
+      background: #1e293b;
+    }
   `]
 })
 export class ProductListComponent implements OnInit {
@@ -1357,6 +1842,7 @@ export class ProductListComponent implements OnInit {
   private categoryService = inject(CategoryService);
   private cartService = inject(CartService);
   private notification = inject(NotificationService);
+  private companyService = inject(CompanyService);
   private destroyRef = inject(DestroyRef);
   authState = inject(AuthStateService);
 
@@ -1365,9 +1851,98 @@ export class ProductListComponent implements OnInit {
   products: Product[] = [];
   categories: Category[] = [];
   categoryCounts: Map<number, number> = new Map();
+  allProductsList: Product[] = [];
+  showAnalytics = false;
   isLoading = true;
   isSearching = false;
   isScrolled = false;
+
+  get canViewAnalytics(): boolean {
+    return this.authState.canViewAnalytics();
+  }
+
+  toggleAnalytics(): void {
+    if (!this.canViewAnalytics) return;
+    this.showAnalytics = !this.showAnalytics;
+  }
+
+  get totalAllProducts(): number {
+    return this.allProductsList.length || this.totalItems;
+  }
+
+  get inStockCount(): number {
+    return this.allProductsList.filter(p => p.quantity > 20).length;
+  }
+
+  get lowStockCount(): number {
+    return this.allProductsList.filter(p => p.quantity >= 10 && p.quantity <= 20).length;
+  }
+
+  get criticalStockCount(): number {
+    return this.allProductsList.filter(p => p.quantity > 0 && p.quantity < 10).length;
+  }
+
+  get outOfStockCount(): number {
+    return this.allProductsList.filter(p => p.quantity <= 0).length;
+  }
+
+  get stockDonutSlices(): DonutSlice[] {
+    const total = this.totalAllProducts || 1;
+    return [
+      { label: 'Yetarli (>20)', value: this.inStockCount, percent: Math.round((this.inStockCount / total) * 100), color: '#10b981' },
+      { label: 'Kam qolgan (10-20)', value: this.lowStockCount, percent: Math.round((this.lowStockCount / total) * 100), color: '#f59e0b' },
+      { label: 'Kritik (<10)', value: this.criticalStockCount, percent: Math.round((this.criticalStockCount / total) * 100), color: '#ef4444' },
+      { label: 'Tugagan (0)', value: this.outOfStockCount, percent: Math.round((this.outOfStockCount / total) * 100), color: '#64748b' }
+    ];
+  }
+
+  get categoryChartSlices(): DonutSlice[] {
+    const total = this.totalAllProducts || 1;
+    const colors = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#14b8a6', '#f97316'];
+    return this.categories.map((c, i) => {
+      const count = this.getCategoryCount(c.id);
+      return {
+        label: c.title,
+        value: count,
+        percent: Math.round((count / total) * 100),
+        color: colors[i % colors.length]
+      };
+    });
+  }
+
+  getCategoryPercent(categoryId: number): number {
+    const total = this.totalAllProducts || this.totalItems || 1;
+    const count = this.getCategoryCount(categoryId);
+    return Math.round((count / total) * 100);
+  }
+
+  getCategoryIcon(title: string): string {
+    if (!title) return '📦';
+    const t = title.toLowerCase();
+    if (t.includes('noutbuk') || t.includes('kompyuter') || t.includes('laptop')) return '💻';
+    if (t.includes('telefon') || t.includes('smartfon') || t.includes('phone')) return '📱';
+    if (t.includes('audio') || t.includes('naushnik') || t.includes('quloqchin')) return '🎧';
+    if (t.includes('maishiy') || t.includes('muzlat') || t.includes('kir')) return '🏠';
+    if (t.includes('tv') || t.includes('televizor') || t.includes('ekran')) return '📺';
+    if (t.includes('soat') || t.includes('watch') || t.includes('smart')) return '⌚';
+    if (t.includes('kamera') || t.includes('foto') || t.includes('camera')) return '📷';
+    if (t.includes('oyun') || t.includes('game') || t.includes('playstation') || t.includes('xbox')) return '🎮';
+    return '📦';
+  }
+
+  getStockBadgeClass(qty: number): string {
+    if (qty > 20) return 'stock-green';
+    if (qty >= 10) return 'stock-yellow';
+    if (qty > 0) return 'stock-red';
+    return 'stock-out';
+  }
+
+  getStockBadgeLabel(qty: number): string {
+    if (qty > 20) return 'Yetarli (' + qty + ')';
+    if (qty >= 10) return 'Kam (' + qty + ')';
+    if (qty > 0) return 'Kritik (' + qty + ')';
+    return 'Tugagan (0)';
+  }
 
   searchQuery = '';
   searchFocused = false;
@@ -1477,18 +2052,56 @@ export class ProductListComponent implements OnInit {
   }
 
   loadCategoryCounts(): void {
-    // Load all products to count by category (simplified approach)
+    // Load all products to count by category & provide stock analytics for staff
     this.productService.getAll().pipe(
       takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: (products) => {
-        this.categoryCounts.clear();
-        (products || []).forEach(p => {
-          if (p.categoryId) {
-            const count = this.categoryCounts.get(p.categoryId) || 0;
-            this.categoryCounts.set(p.categoryId, count + 1);
+        const rawProducts = products || [];
+
+        // 1. BranchManager: faqat o'z filialidagi mahsulotlar
+        if (this.authState.isBranchManager()) {
+          const userBranchId = this.authState.userBranchId();
+          this.allProductsList = rawProducts.filter(p => p.companyBranchId === userBranchId);
+          this.recalcCategoryCounts();
+        }
+        // 2. CompanyAdmin: faqat o'z kompaniyasining filiallarga tegishli mahsulotlari
+        else if (this.authState.isCompanyAdmin()) {
+          const companyId = this.authState.userCompanyId();
+          if (companyId) {
+            this.companyService.getBranchesByCompanyId(companyId).pipe(
+              takeUntilDestroyed(this.destroyRef)
+            ).subscribe({
+              next: (branches) => {
+                const branchIds = new Set((branches || []).map(b => b.id));
+                this.allProductsList = rawProducts.filter(p => p.companyBranchId != null && branchIds.has(p.companyBranchId));
+                this.recalcCategoryCounts();
+              },
+              error: () => {
+                this.allProductsList = rawProducts;
+                this.recalcCategoryCounts();
+              }
+            });
+          } else {
+            this.allProductsList = rawProducts;
+            this.recalcCategoryCounts();
           }
-        });
+        }
+        // 3. SuperAdmin va boshqalar: barcha mahsulotlar
+        else {
+          this.allProductsList = rawProducts;
+          this.recalcCategoryCounts();
+        }
+      }
+    });
+  }
+
+  private recalcCategoryCounts(): void {
+    this.categoryCounts.clear();
+    this.allProductsList.forEach(p => {
+      if (p.categoryId) {
+        const count = this.categoryCounts.get(p.categoryId) || 0;
+        this.categoryCounts.set(p.categoryId, count + 1);
       }
     });
   }

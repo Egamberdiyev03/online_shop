@@ -47,3 +47,28 @@ export interface CreateOrderDto {
   deliveryLatitude?: number;
   deliveryLongitude?: number;
 }
+
+export type OrderPaymentFilter = 'all' | 'unpaid' | 'pending' | 'completed' | 'failed';
+
+export interface OrderFilter {
+  status?: OrderStatus | number | null;
+  search?: string | null;
+  branchId?: number | null;
+  companyId?: number | null;
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  paymentStatus?: OrderPaymentFilter | null;
+  sortBy?: 'createdAt_desc' | 'createdAt_asc' | 'totalPrice_desc' | 'totalPrice_asc' | string;
+  pageNumber?: number;
+  pageSize?: number;
+}
+
+export interface OrderStatusCounts {
+  all: number;
+  pending: number;
+  confirmed: number;
+  shipped: number;
+  delivered: number;
+  cancelled: number;
+}
+

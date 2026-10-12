@@ -2,6 +2,7 @@
 using Application.Extentions;
 using Application.Interfaces;
 using Domain.Enums;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace OnlineShop.Controllers
@@ -34,7 +35,7 @@ namespace OnlineShop.Controllers
         {
             return await _paymentService.GetPaymentByOrderIdAsync(orderId);
         }
-
+        [Authorize(Roles ="SuperAdmin,CompanyAdmin,BranchAdmin")]
         [HttpGet("get-all")] 
         public async Task<ResponseModel<List<PaymentDto>>> GetAllPayments([FromQuery] PaymentStatus? status, [FromQuery] int? branchId)
         {

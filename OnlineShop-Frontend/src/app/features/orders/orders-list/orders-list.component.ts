@@ -1,9 +1,11 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Order, OrderStatus } from '../../../core/models/order.model';
+import { Router, ActivatedRoute, RouterModule } from '@angular/router';
+import { Order, OrderStatus, OrderFilter, OrderStatusCounts, OrderPaymentFilter } from '../../../core/models/order.model';
 import { CompanyBranch } from '../../../core/models/company-branch.model';
-import { Payment, PaymentStatus, PaymentStatusLabels } from '../../../core/models/payment.model';
+import { Company } from '../../../core/models/company.model';
+import { Payment, PaymentStatus, PaymentStatusLabels, PagedResult } from '../../../core/models/payment.model';
 import { Customer } from '../../../core/models/customer.model';
 import { OrderService } from '../../../core/services/order.service';
 import { CompanyService } from '../../../core/services/company.service';
@@ -14,6 +16,9 @@ import { NotificationService } from '../../../core/services/notification.service
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
 import { LoadingSpinnerComponent } from '../../../shared/components/loading-spinner/loading-spinner.component';
 import { EmptyStateComponent } from '../../../shared/components/empty-state/empty-state.component';
+import { StatusChipsComponent } from '../../../shared/components/status-chips/status-chips.component';
+import { OrderFiltersComponent } from '../../../shared/components/order-filters/order-filters.component';
+import { OrderStepperComponent } from '../../../shared/components/dashboard/order-stepper/order-stepper.component';
 
 @Component({
   selector: 'app-orders-list',
@@ -21,9 +26,13 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
   imports: [
     CommonModule, 
     FormsModule, 
+    RouterModule,
     StatusBadgeComponent, 
     LoadingSpinnerComponent, 
-    EmptyStateComponent
+    EmptyStateComponent,
+    StatusChipsComponent,
+    OrderFiltersComponent,
+    OrderStepperComponent
   ],
   template: `
     <div class="container">
@@ -63,31 +72,23 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
         </div>
       </div>
 
-      <!-- Admin Filters -->
-      <div class="filter-bar card" *ngIf="viewMode === 'all'">
-        <!-- Filial filtri - BranchManager uchun yashirin -->
-        <div class="filter-col" *ngIf="!authState.isBranchManager()">
-          <label class="filter-label">Filial bo'yicha:</label>
-          <select [(ngModel)]="filterBranchId" (ngModelChange)="loadOrders()" class="form-control">
-            <option [ngValue]="null">Barcha filiallar</option>
-            <option *ngFor="let branch of branches" [ngValue]="branch.id">
-              {{ branch.name }} (#{{ branch.id }})
-            </option>
-          </select>
-        </div>
+      <!-- Status Chips (Matching /payments design) -->
+      <app-status-chips
+        [selectedStatus]="orderFilter.status ?? null"
+        [counts]="statusCounts"
+        (statusChange)="onStatusChipSelected($event)"
+      ></app-status-chips>
 
-        <div class="filter-col">
-          <label class="filter-label">Status bo'yicha:</label>
-          <select [(ngModel)]="filterStatus" (ngModelChange)="loadOrders()" class="form-control">
-            <option [ngValue]="null">Barcha statuslar</option>
-            <option [ngValue]="OrderStatus.Pending">Kutilmoqda (Pending)</option>
-            <option [ngValue]="OrderStatus.Confirmed">Tasdiqlangan (Confirmed)</option>
-            <option [ngValue]="OrderStatus.Shipped">Jo'natildi (Shipped)</option>
-            <option [ngValue]="OrderStatus.Delivered">Yetkazildi (Delivered)</option>
-            <option [ngValue]="OrderStatus.Cancelled">Bekor qilingan (Cancelled)</option>
-          </select>
-        </div>
-      </div>
+      <!-- Advanced Filters Panel (Search with debounce, branch, date range, payment status, sorting) -->
+      <app-order-filters
+        [filter]="orderFilter"
+        [branches]="availableBranches"
+        [companies]="companies"
+        [showBranchFilter]="showBranchDropdown"
+        [showCompanyFilter]="showCompanyDropdown"
+        (filterChange)="onFilterChanged($event)"
+        (reset)="onFilterReset()"
+      ></app-order-filters>
 
       <app-loading-spinner *ngIf="isLoading" message="Buyurtmalar yuklanmoqda..."></app-loading-spinner>
 
@@ -97,19 +98,33 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
         icon="⚠️"
         title="Xatolik yuz berdi"
         [description]="errorMessage"
+        actionText="Qayta urinish"
+        (actionClick)="loadOrders()"
       ></app-empty-state>
 
-      <!-- Bo'sh holat (xato yo'q, lekin buyurtmalar ham yo'q) -->
+      <!-- Bo'sh holat: Agar mijozda umuman buyurtma bo'lmasa -->
       <app-empty-state
-        *ngIf="!isLoading && !hasError && orders.length === 0"
-        icon="📋"
-        title="Buyurtmalar mavjud emas"
-        description="Hozircha hech qanday buyurtma ro'yxatga olinmagan."
+        *ngIf="!isLoading && !hasError && allOrders.length === 0"
+        icon="🛍️"
+        title="Sizda hali buyurtmalar yo‘q"
+        description="Xarid qilishni boshlash uchun mahsulotlar katalogiga o‘ting."
+        actionText="Mahsulotlarga o‘tish"
+        (actionClick)="goToProducts()"
+      ></app-empty-state>
+
+      <!-- Bo'sh holat: Agar filtr bo'yicha buyurtma topilmasa -->
+      <app-empty-state
+        *ngIf="!isLoading && !hasError && allOrders.length > 0 && paginatedOrders.length === 0"
+        icon="🔍"
+        title="Bu filtr bo‘yicha buyurtma topilmadi"
+        description="Qidiruv yoki filtrlash shartlarini o‘zgartirib ko‘ring."
+        actionText="Filtrni tozalash"
+        (actionClick)="onFilterReset()"
       ></app-empty-state>
 
       <!-- Orders List -->
-      <div class="orders-container" *ngIf="!isLoading && orders.length > 0">
-        <div class="order-card card" *ngFor="let order of orders">
+      <div class="orders-container" *ngIf="!isLoading && !hasError && paginatedOrders.length > 0">
+        <div class="order-card card" *ngFor="let order of paginatedOrders">
           <div class="order-header">
             <div class="order-id-block">
               <span class="order-number">Buyurtma #{{ order.id }}</span>
@@ -120,11 +135,30 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
               <span class="customer-tag" *ngIf="viewMode === 'all'" title="Mijoz">
                 👤 {{ getCustomerDisplayName(order) }}
               </span>
-              <span class="branch-tag" *ngIf="order.companyBranchId">
+              <a
+                *ngIf="order.companyBranchId && hasBranchCoords(order.companyBranchId)"
+                [routerLink]="['/map']"
+                [queryParams]="{ branch: order.companyBranchId }"
+                class="branch-tag branch-link"
+                title="Xaritada ko‘rish"
+                (click)="$event.stopPropagation()"
+              >
+                📍 {{ getBranchName(order.companyBranchId) }}
+              </a>
+              <span
+                *ngIf="order.companyBranchId && !hasBranchCoords(order.companyBranchId)"
+                class="branch-tag branch-no-coords"
+                title="Koordinata kiritilmagan"
+              >
                 📍 {{ getBranchName(order.companyBranchId) }}
               </span>
               <app-status-badge [status]="order.status"></app-status-badge>
             </div>
+          </div>
+
+          <!-- Order Timeline Progress Stepper -->
+          <div class="order-stepper-box">
+            <app-order-stepper [currentStatus]="order.status"></app-order-stepper>
           </div>
 
           <!-- Order Items Table -->
@@ -162,17 +196,19 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
               <span class="total-amount">{{ order.totalPrice | number:'1.0-0' }} so'm</span>
 
               <!-- To'lov statusi ko'rinishi -->
-              <div class="payment-badge-wrap" *ngIf="orderPayments.get(order.id) as payment">
-                <span class="payment-pill" [style.color]="getPaymentBadge(payment.status).color" [style.background]="getPaymentBadge(payment.status).bg">
-                  💳 {{ getPaymentBadge(payment.status).label }}
+              <div class="payment-badge-wrap">
+                <span 
+                  class="payment-pill" 
+                  [style.color]="getOrderPaymentBadge(order).color" 
+                  [style.background]="getOrderPaymentBadge(order).bg"
+                >
+                  💳 {{ getOrderPaymentBadge(order).label }}
                 </span>
-                <span class="rejection-note" *ngIf="payment.status === PaymentStatus.Failed && payment.rejectionReason">
-                  Sabab: {{ payment.rejectionReason }}
-                </span>
-              </div>
-              <div class="payment-badge-wrap" *ngIf="!orderPayments.get(order.id) && order.status !== OrderStatus.Cancelled">
-                <span class="payment-pill unpaid-pill">
-                  ⚠️ To‘lov kutilmoqda
+                <span 
+                  class="rejection-note" 
+                  *ngIf="orderPayments.get(order.id)?.status === PaymentStatus.Failed && orderPayments.get(order.id)?.rejectionReason"
+                >
+                  Sabab: {{ orderPayments.get(order.id)?.rejectionReason }}
                 </span>
               </div>
             </div>
@@ -196,6 +232,16 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
               >
                 🧾 Chekni ko‘rish
               </button>
+
+              <!-- To'lovni ko'rish (Payment details link) -->
+              <a
+                *ngIf="orderPayments.get(order.id) as paymentObj"
+                [routerLink]="(authState.isAdminMode() || authState.isAdminRole()) ? ['/admin/payments', paymentObj.id] : ['/payments', paymentObj.id]"
+                class="btn btn-secondary btn-sm"
+                title="To‘lov tafsiloti va chekni ko‘rish"
+              >
+                🔎 To‘lovni ko‘rish
+              </a>
 
               <!-- Admin/BranchManager: To'lovni tekshirish / qabul qilish -->
               <button
@@ -233,6 +279,23 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Load More / Pagination -->
+      <div class="load-more-section" *ngIf="!isLoading && !hasError && totalPages > 1">
+        <div class="page-info-text">
+          {{ Math.min(displayedCount, filteredOrders.length) }} / {{ filteredOrders.length }} ta buyurtma ko‘rsatilmoqda
+        </div>
+        <div class="load-more-actions">
+          <button 
+            *ngIf="displayedCount < filteredOrders.length"
+            type="button" 
+            class="btn btn-secondary load-more-btn"
+            (click)="loadMore()"
+          >
+            Yana yuklash ({{ Math.min(orderFilter.pageSize || 10, filteredOrders.length - displayedCount) }} ta)
+          </button>
         </div>
       </div>
 
@@ -461,14 +524,20 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
             </div>
 
             <!-- Rejection Reason Input (shown only if rejecting) -->
-            <div class="reject-box" *ngIf="showRejectReasonInput">
-              <label class="form-sub-label text-danger">Rad etish sababini kiriting *</label>
+            <div class="reject-box" *ngIf="showRejectReasonInput" id="adminRejectBox">
+              <label class="form-sub-label text-danger fw-bold">⚠️ Rad etish sababini kiriting (majburiy):</label>
               <textarea
-                class="form-control"
+                id="adminRejectReasonInput"
+                class="form-control reject-textarea"
+                [class.is-invalid]="rejectReasonHasError && !adminRejectReason.trim()"
                 rows="2"
                 [(ngModel)]="adminRejectReason"
-                placeholder="Masalan: Hisobga pul tushmadi yoki summa mos kelmadi..."
+                placeholder="Masalan: Chek yaroqsiz, summa to‘liq tushmagan yoki boshqa sabab..."
+                (input)="rejectReasonHasError = false"
               ></textarea>
+              <div class="text-danger error-hint" *ngIf="rejectReasonHasError && !adminRejectReason.trim()">
+                Iltimos, rad etish sababini yozing!
+              </div>
             </div>
           </div>
 
@@ -483,7 +552,7 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
                 *ngIf="!showRejectReasonInput"
                 type="button"
                 class="btn btn-danger btn-sm"
-                (click)="showRejectReasonInput = true"
+                (click)="startRejectMode()"
                 [disabled]="isAdminProcessingPayment"
               >
                 ❌ Rad etish
@@ -491,13 +560,24 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
               <button
                 *ngIf="showRejectReasonInput"
                 type="button"
+                class="btn btn-secondary btn-sm"
+                (click)="cancelRejectMode()"
+                [disabled]="isAdminProcessingPayment"
+              >
+                Bekor qilish
+              </button>
+              <button
+                *ngIf="showRejectReasonInput"
+                type="button"
                 class="btn btn-danger btn-sm"
                 (click)="confirmRejectPayment()"
-                [disabled]="isAdminProcessingPayment || !adminRejectReason.trim()"
+                [disabled]="isAdminProcessingPayment"
               >
+                <span *ngIf="isAdminProcessingPayment" class="btn-spinner"></span>
                 {{ isAdminProcessingPayment ? 'Bajarilmoqda...' : 'Rad etishni tasdiqlash' }}
               </button>
               <button
+                *ngIf="!showRejectReasonInput"
                 type="button"
                 class="btn btn-success btn-sm"
                 (click)="confirmApprovePayment()"
@@ -668,13 +748,19 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
       padding: 0;
       overflow: hidden;
       background: #ffffff;
-      border-radius: 16px;
+      border-radius: 18px;
       border: 1px solid #e2e8f0;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-      transition: box-shadow 0.2s;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .order-card:hover {
-      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+      border-color: #cbd5e1;
+    }
+    .order-stepper-box {
+      padding: 0.85rem 1.5rem;
+      background: #ffffff;
+      border-bottom: 1px solid #f1f5f9;
     }
     .order-header {
       padding: 1.25rem 1.5rem;
@@ -714,6 +800,24 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
       border-radius: 6px;
       color: #475569;
       font-weight: 600;
+    }
+    .branch-link {
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      transition: all 0.2s ease;
+    }
+    .branch-link:hover {
+      background: #eef2ff;
+      border-color: #6366f1;
+      color: #4f46e5;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 5px rgba(99, 102, 241, 0.15);
+    }
+    .branch-no-coords {
+      opacity: 0.65;
+      cursor: default;
     }
 
     .order-items-wrapper {
@@ -1274,12 +1378,26 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
     }
     .reject-box {
       background: #fef2f2;
-      border: 1px solid #fee2e2;
+      border: 1.5px solid #ef4444;
       border-radius: 8px;
-      padding: 0.75rem;
+      padding: 0.85rem;
       display: flex;
       flex-direction: column;
-      gap: 0.35rem;
+      gap: 0.45rem;
+      box-shadow: 0 2px 8px rgba(239, 68, 68, 0.1);
+    }
+    .reject-textarea {
+      resize: vertical;
+      min-height: 65px;
+    }
+    .reject-textarea.is-invalid {
+      border-color: #dc2626;
+      background-color: #fffaf0;
+    }
+    .error-hint {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #dc2626;
     }
 
     /* Viewer Modal */
@@ -1292,6 +1410,92 @@ import { EmptyStateComponent } from '../../../shared/components/empty-state/empt
       border-radius: 8px;
       object-fit: contain;
     }
+
+    /* Load more / pagination */
+    .load-more-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .page-info-text {
+      font-size: 0.85rem;
+      color: #64748b;
+    }
+    .load-more-btn {
+      padding: 0.65rem 1.75rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border-radius: 10px;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      color: #334155;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      transition: all 0.2s ease;
+    }
+    .load-more-btn:hover {
+      background: #f8fafc;
+      border-color: #94a3b8;
+      color: #0f172a;
+      transform: translateY(-1px);
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    /* Dark Mode Support */
+    :host-context(body.dark-theme) .page-title {
+      color: #f8fafc !important;
+    }
+    :host-context(body.dark-theme) .page-subtitle {
+      color: #94a3b8 !important;
+    }
+    :host-context(body.dark-theme) .mode-toggle {
+      background: #0b0f19;
+      border-color: #334155;
+    }
+    :host-context(body.dark-theme) .toggle-btn {
+      color: #94a3b8;
+    }
+    :host-context(body.dark-theme) .toggle-btn.active {
+      background: #1e293b;
+      color: #818cf8;
+    }
+    :host-context(body.dark-theme) .load-more-btn {
+      background: #151e32;
+      border-color: #22304d;
+      color: #cbd5e1;
+    }
+    :host-context(body.dark-theme) .load-more-btn:hover {
+      background: #1e293b;
+      border-color: #3b82f6;
+      color: #f8fafc;
+    }
+    :host-context(body.dark-theme) .page-info-text {
+      color: #94a3b8;
+    }
+    :host-context(body.dark-theme) .branch-link {
+      background: #151e32;
+      border-color: #22304d;
+      color: #818cf8;
+    }
+    :host-context(body.dark-theme) .branch-link:hover {
+      background: #1e1b4b;
+      border-color: #6366f1;
+      color: #a5b4fc;
+      box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
+    }
+    :host-context(body.dark-theme) .branch-no-coords {
+      background: #151e32;
+      border-color: #22304d;
+      color: #64748b;
+    }
+    :host-context(body.dark-theme) .order-stepper-box,
+    :host-context(.dark-theme) .order-stepper-box {
+      background: #111827;
+      border-bottom-color: #1f2937;
+    }
   `]
 })
 export class OrdersListComponent implements OnInit {
@@ -1301,19 +1505,59 @@ export class OrdersListComponent implements OnInit {
   public customerService = inject(CustomerService);
   public authState = inject(AuthStateService);
   private notification = inject(NotificationService);
+  private router = inject(Router);
+  private route = inject(ActivatedRoute);
 
+  Math = Math;
   OrderStatus = OrderStatus;
   PaymentStatus = PaymentStatus;
   viewMode: 'my' | 'all' = 'my';
+
+  // Raw orders loaded from backend
+  allOrders: Order[] = [];
+  // For backwards compatibility
   orders: Order[] = [];
+  // Filtered orders list (before client pagination slice)
+  filteredOrders: Order[] = [];
+  // Current displayed orders for the UI
+  paginatedOrders: Order[] = [];
+
   branches: CompanyBranch[] = [];
+  companies: Company[] = [];
+  availableBranches: CompanyBranch[] = [];
   customersMap: Map<number, Customer> = new Map();
+
   isLoading = true;
   hasError = false;
   errorMessage = '';
 
-  filterBranchId: number | null = null;
-  filterStatus: OrderStatus | null = null;
+  // Pagination state
+  displayedCount = 10;
+  totalPages = 1;
+
+  // Active filter state
+  orderFilter: OrderFilter = {
+    status: null,
+    search: null,
+    branchId: null,
+    companyId: null,
+    dateFrom: null,
+    dateTo: null,
+    paymentStatus: 'all',
+    sortBy: 'createdAt_desc',
+    pageNumber: 1,
+    pageSize: 10
+  };
+
+  // Status counts (calculated over all customer/role orders, independent of active filters)
+  statusCounts: OrderStatusCounts = {
+    all: 0,
+    pending: 0,
+    confirmed: 0,
+    shipped: 0,
+    delivered: 0,
+    cancelled: 0
+  };
 
   // Payments map: orderId -> Payment
   orderPayments: Map<number, Payment> = new Map();
@@ -1333,6 +1577,7 @@ export class OrdersListComponent implements OnInit {
   adminReviewPayment: Payment | null = null;
   adminRejectReason = '';
   showRejectReasonInput = false;
+  rejectReasonHasError = false;
   isAdminProcessingPayment = false;
   adminPaymentMethod: 'Cash' | 'CardTransfer' = 'Cash';
   adminPaymentNote = '';
@@ -1346,22 +1591,186 @@ export class OrdersListComponent implements OnInit {
   orderToCancel: Order | null = null;
   isCancelling = false;
 
+  get showBranchDropdown(): boolean {
+    return !this.authState.isBranchManager();
+  }
+
+  get showCompanyDropdown(): boolean {
+    return this.authState.isSuperAdmin();
+  }
+
   ngOnInit(): void { 
+    this.parseFiltersFromUrl();
     this.loadBranches(); 
+    this.loadCompanies();
     this.loadCustomers();
+
     if (this.authState.isAdminMode() || this.authState.isAdminRole()) { 
       this.viewMode = 'all'; 
     } 
     if (this.authState.isBranchManager()) { 
-      this.filterBranchId = this.authState.userBranchId(); 
+      this.orderFilter.branchId = this.authState.userBranchId(); 
       this.viewMode = 'all'; 
-    } 
+    }
+
+    // Subscribe to query params changes (back/forward navigation support)
+    this.route.queryParams.subscribe(params => {
+      this.applyParamsToFilter(params);
+      if (this.allOrders.length > 0) {
+        this.applyFilters(false);
+      }
+    });
+
     this.loadOrders(); 
+  }
+
+  private parseFiltersFromUrl(): void {
+    const params = this.route.snapshot.queryParams;
+    this.applyParamsToFilter(params);
+  }
+
+  private applyParamsToFilter(params: any): void {
+    if (params['status'] !== undefined && params['status'] !== null && params['status'] !== '') {
+      const parsedStatus = Number(params['status']);
+      this.orderFilter.status = isNaN(parsedStatus) ? null : parsedStatus;
+    } else {
+      this.orderFilter.status = null;
+    }
+
+    if (params['search']) {
+      this.orderFilter.search = params['search'];
+    }
+    if (params['branchId']) {
+      this.orderFilter.branchId = Number(params['branchId']);
+    }
+    if (params['companyId']) {
+      this.orderFilter.companyId = Number(params['companyId']);
+    }
+    if (params['dateFrom']) {
+      this.orderFilter.dateFrom = params['dateFrom'];
+    }
+    if (params['dateTo']) {
+      this.orderFilter.dateTo = params['dateTo'];
+    }
+    if (params['paymentStatus']) {
+      this.orderFilter.paymentStatus = params['paymentStatus'];
+    }
+    if (params['sortBy']) {
+      this.orderFilter.sortBy = params['sortBy'];
+    }
+    if (params['pageSize']) {
+      this.orderFilter.pageSize = Number(params['pageSize']) || 10;
+    }
+    if (params['page']) {
+      const page = Number(params['page']) || 1;
+      this.displayedCount = page * (this.orderFilter.pageSize || 10);
+    }
+  }
+
+  private syncUrlWithFilters(): void {
+    const queryParams: any = {};
+
+    if (this.orderFilter.status !== null && this.orderFilter.status !== undefined) {
+      queryParams['status'] = this.orderFilter.status;
+    }
+    if (this.orderFilter.search) {
+      queryParams['search'] = this.orderFilter.search;
+    }
+    if (this.orderFilter.branchId) {
+      queryParams['branchId'] = this.orderFilter.branchId;
+    }
+    if (this.orderFilter.companyId) {
+      queryParams['companyId'] = this.orderFilter.companyId;
+    }
+    if (this.orderFilter.dateFrom) {
+      queryParams['dateFrom'] = this.orderFilter.dateFrom;
+    }
+    if (this.orderFilter.dateTo) {
+      queryParams['dateTo'] = this.orderFilter.dateTo;
+    }
+    if (this.orderFilter.paymentStatus && this.orderFilter.paymentStatus !== 'all') {
+      queryParams['paymentStatus'] = this.orderFilter.paymentStatus;
+    }
+    if (this.orderFilter.sortBy && this.orderFilter.sortBy !== 'createdAt_desc') {
+      queryParams['sortBy'] = this.orderFilter.sortBy;
+    }
+    const currentPage = Math.ceil(this.displayedCount / (this.orderFilter.pageSize || 10));
+    if (currentPage > 1) {
+      queryParams['page'] = currentPage;
+    }
+
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams,
+      queryParamsHandling: '',
+      replaceUrl: true
+    });
   }
 
   setViewMode(mode: 'my' | 'all'): void {
     this.viewMode = mode;
     this.loadOrders();
+  }
+
+  loadCompanies(): void {
+    if (this.authState.isSuperAdmin()) {
+      this.companyService.getAllCompanies().subscribe({
+        next: (companies: Company[]) => {
+          this.companies = companies || [];
+        },
+        error: () => {}
+      });
+    }
+  }
+
+  loadCustomers(): void {
+    if (this.authState.isSuperAdmin() || this.authState.isCompanyAdmin()) {
+      this.customerService.getAll().subscribe({
+        next: (customers) => {
+          (customers || []).forEach(c => {
+            this.customersMap.set(c.id, c);
+          });
+        },
+        error: () => {}
+      });
+    } else {
+      // Oddiy mijoz yoki filial mudiri uchun o'z ma'lumotlarini map ga joylash
+      const currentCust = this.authState.currentCustomer();
+      if (currentCust) {
+        this.customersMap.set(currentCust.id, currentCust);
+      }
+      const user = this.authState.currentUser();
+      const customerId = this.authState.currentCustomerId() || user?.userId;
+      if (customerId && user) {
+        this.customersMap.set(customerId, {
+          id: customerId,
+          name: user.name,
+          email: user.email,
+          phoneNumber: '',
+          address: '',
+          location: ''
+        });
+      }
+    }
+  }
+
+  enrichBranchOrdersCustomers(): void {
+    if (!this.authState.isBranchManager()) return;
+    const missingIds = new Set<number>();
+    this.allOrders.forEach(o => {
+      const cId = o.customerId || (o as any).userId;
+      if (cId && !this.customersMap.has(cId)) {
+        missingIds.add(cId);
+      }
+    });
+    missingIds.forEach(id => {
+      this.customerService.getById(id).subscribe({
+        next: (c) => {
+          if (c) this.customersMap.set(c.id, c);
+        },
+        error: () => {}
+      });
+    });
   }
 
   loadBranches(): void {
@@ -1370,26 +1779,35 @@ export class OrdersListComponent implements OnInit {
         if (this.authState.isCompanyAdmin()) {
           const cId = this.authState.userCompanyId();
           this.branches = branches.filter(b => b.companyId === cId);
+          this.availableBranches = this.branches;
         } else if (this.authState.isBranchManager()) {
           const bId = this.authState.userBranchId();
           this.branches = branches.filter(b => b.id === bId);
-        } else {
+          this.availableBranches = this.branches;
+        } else if (this.authState.isSuperAdmin()) {
           this.branches = branches;
+          this.availableBranches = branches;
+        } else {
+          // Oddiy mijoz uchun ham ro'yxatni saqlash
+          this.branches = branches;
+          this.computeCustomerAvailableBranches();
         }
       },
       error: () => {}
     });
   }
 
-  loadCustomers(): void {
-    this.customerService.getAll().subscribe({
-      next: (customers) => {
-        (customers || []).forEach(c => {
-          this.customersMap.set(c.id, c);
-        });
-      },
-      error: () => {}
-    });
+  computeCustomerAvailableBranches(): void {
+    if (this.authState.isAdminRole() || this.authState.isAdminMode()) {
+      this.availableBranches = this.branches;
+      return;
+    }
+    if (!this.allOrders || this.allOrders.length === 0) {
+      this.availableBranches = [];
+      return;
+    }
+    const customerBranchIds = new Set(this.allOrders.map(o => o.companyBranchId).filter(id => !!id));
+    this.availableBranches = this.branches.filter(b => customerBranchIds.has(b.id));
   }
 
   loadOrders(): void {
@@ -1401,15 +1819,23 @@ export class OrdersListComponent implements OnInit {
       const customerId = this.authState.currentCustomerId();
       this.orderService.getByCustomerId(customerId).subscribe({
         next: (orders) => {
-          this.orders = orders || [];
+          this.allOrders = orders || [];
+          this.orders = this.allOrders;
           this.isLoading = false;
+          this.statusCounts = this.orderService.computeStatusCounts(this.allOrders);
+          this.computeCustomerAvailableBranches();
+          this.applyFilters(false);
           this.loadPaymentsForOrders();
         },
         error: (err) => {
           console.error('[Orders] Error loading my orders:', err);
           this.isLoading = false;
           this.hasError = true;
+          this.allOrders = [];
           this.orders = [];
+          this.filteredOrders = [];
+          this.paginatedOrders = [];
+          this.statusCounts = { all: 0, pending: 0, confirmed: 0, shipped: 0, delivered: 0, cancelled: 0 };
           if (err?.status === 403) {
             this.errorMessage = 'Buyurtmalarni ko\'rish uchun ruxsat yo\'q.';
           } else {
@@ -1419,33 +1845,26 @@ export class OrdersListComponent implements OnInit {
         }
       });
     } else {
-      if (this.filterBranchId !== null) {
-        this.orderService.getOrdersByBranchId(this.filterBranchId).subscribe({
+      if (this.authState.isBranchManager()) {
+        const branchId = this.authState.userBranchId() || this.orderFilter.branchId || 0;
+        this.orderService.getOrdersByBranchId(branchId).subscribe({
           next: (orders) => {
-            this.orders = orders || [];
+            this.allOrders = orders || [];
+            this.orders = this.allOrders;
             this.isLoading = false;
+            this.statusCounts = this.orderService.computeStatusCounts(this.allOrders);
+            this.enrichBranchOrdersCustomers();
+            this.applyFilters(false);
             this.loadPaymentsForOrders();
           },
           error: (err) => {
             console.error('[Orders] Error loading orders by branch:', err);
             this.isLoading = false;
             this.hasError = true;
+            this.allOrders = [];
             this.orders = [];
-            this.errorMessage = err?.status === 403 ? 'Ruxsat yo\'q.' : 'Xatolik yuz berdi.';
-          }
-        });
-      } else if (this.filterStatus !== null) {
-        this.orderService.getOrdersByStatus(this.filterStatus).subscribe({
-          next: (orders) => {
-            this.orders = orders || [];
-            this.isLoading = false;
-            this.loadPaymentsForOrders();
-          },
-          error: (err) => {
-            console.error('[Orders] Error loading orders by status:', err);
-            this.isLoading = false;
-            this.hasError = true;
-            this.orders = [];
+            this.filteredOrders = [];
+            this.paginatedOrders = [];
             this.errorMessage = err?.status === 403 ? 'Ruxsat yo\'q.' : 'Xatolik yuz berdi.';
           }
         });
@@ -1453,19 +1872,26 @@ export class OrdersListComponent implements OnInit {
         this.orderService.getAll().subscribe({
           next: (orders) => {
             if (this.authState.isSuperAdmin()) {
-              this.orders = orders || [];
+              this.allOrders = orders || [];
             } else {
               const branchIds = this.branches.map(b => b.id);
-              this.orders = (orders || []).filter(o => branchIds.includes(o.companyBranchId));
+              this.allOrders = (orders || []).filter(o => branchIds.includes(o.companyBranchId));
             }
+            this.orders = this.allOrders;
             this.isLoading = false;
+            this.statusCounts = this.orderService.computeStatusCounts(this.allOrders);
+            this.enrichBranchOrdersCustomers();
+            this.applyFilters(false);
             this.loadPaymentsForOrders();
           },
           error: (err) => {
             console.error('[Orders] Error loading all orders:', err);
             this.isLoading = false;
             this.hasError = true;
+            this.allOrders = [];
             this.orders = [];
+            this.filteredOrders = [];
+            this.paginatedOrders = [];
             this.errorMessage = err?.status === 403 ? 'Barcha buyurtmalarni ko\'rish uchun ruxsat yo\'q.' : 'Xatolik yuz berdi.';
           }
         });
@@ -1473,11 +1899,83 @@ export class OrdersListComponent implements OnInit {
     }
   }
 
+  // --- Filtering & Pagination methods ---
+  applyFilters(syncUrl = true): void {
+    // If companyId filter is selected by SuperAdmin, filter by branches of that company
+    let targetOrders = [...this.allOrders];
+    if (this.orderFilter.companyId && this.authState.isSuperAdmin()) {
+      const companyBranchIds = new Set(
+        this.branches.filter(b => b.companyId === this.orderFilter.companyId).map(b => b.id)
+      );
+      targetOrders = targetOrders.filter(o => companyBranchIds.has(o.companyBranchId));
+    }
+
+    // Run order filtering logic
+    const filterCopy = { ...this.orderFilter, pageSize: 999999, pageNumber: 1 };
+    const pagedResult = this.orderService.filterOrders(targetOrders, filterCopy, this.orderPayments);
+
+    this.filteredOrders = pagedResult.items;
+
+    const pageSize = this.orderFilter.pageSize || 10;
+    this.totalPages = Math.ceil(this.filteredOrders.length / pageSize) || 1;
+
+    // Slice for client-side pagination (load more)
+    this.paginatedOrders = this.filteredOrders.slice(0, this.displayedCount);
+
+    if (syncUrl) {
+      this.syncUrlWithFilters();
+    }
+  }
+
+  onStatusChipSelected(status: OrderStatus | null): void {
+    this.orderFilter.status = status;
+    this.displayedCount = this.orderFilter.pageSize || 10;
+    this.applyFilters(true);
+  }
+
+  onFilterChanged(updatedFilter: OrderFilter): void {
+    this.orderFilter = { ...updatedFilter };
+    this.displayedCount = this.orderFilter.pageSize || 10;
+    this.applyFilters(true);
+  }
+
+  onFilterReset(): void {
+    this.orderFilter = {
+      status: null,
+      search: null,
+      branchId: this.authState.isBranchManager() ? this.authState.userBranchId() : null,
+      companyId: null,
+      dateFrom: null,
+      dateTo: null,
+      paymentStatus: 'all',
+      sortBy: 'createdAt_desc',
+      pageNumber: 1,
+      pageSize: 10
+    };
+    this.displayedCount = 10;
+    this.applyFilters(true);
+  }
+
+  loadMore(): void {
+    const pageSize = this.orderFilter.pageSize || 10;
+    this.displayedCount += pageSize;
+    this.applyFilters(true);
+  }
+
+  goToProducts(): void {
+    this.router.navigate(['/']);
+  }
+
   loadPaymentsForOrders(): void {
     if (!this.orders || this.orders.length === 0) return;
 
-    if (this.authState.isAdminMode() || this.authState.isAdminRole() || this.viewMode === 'all') {
-      const branchId = this.authState.isBranchManager() ? (this.authState.userBranchId() || undefined) : (this.filterBranchId || undefined);
+    // Faqat SuperAdmin va CompanyAdmin Payment/get-all endpointiga ruxsatga ega.
+    // Backend PaymentController da 'BranchAdmin' deb yozilganligi tufayli BranchManager rolida 403 beradi.
+    // Shuning uchun BranchManager va Customer to'lovlari xavfsiz getPaymentByOrderId orqali olinadi.
+    const canCallGetAll = (this.authState.isSuperAdmin() || this.authState.isCompanyAdmin()) && !this.authState.isBranchManager();
+
+    if (canCallGetAll && this.viewMode === 'all') {
+      const branchId = this.orderFilter.branchId || undefined;
       this.paymentService.getAllPayments(undefined, branchId).subscribe({
         next: (payments) => {
           (payments || []).forEach(p => {
@@ -1510,12 +2008,37 @@ export class OrdersListComponent implements OnInit {
     return PaymentStatusLabels[status] || { label: 'Noma\'lum', color: '#6b7280', bg: '#f3f4f6' };
   }
 
+  getOrderPaymentBadge(order: Order): { label: string; color: string; bg: string } {
+    const payment = this.getPayment(order.id);
+    if (payment) {
+      return this.getPaymentBadge(payment.status);
+    }
+    // Agar to'lov jadvalida yozuv bo'lmasa, lekin buyurtma tasdiqlangan, jo'natilgan yoki yetkazilgan bo'lsa - demak to'lov qilingan!
+    if (
+      order.status === OrderStatus.Confirmed ||
+      order.status === OrderStatus.Shipped ||
+      order.status === OrderStatus.Delivered
+    ) {
+      return { label: 'To‘langan', color: '#15803d', bg: '#dcfce7' };
+    }
+    if (order.status === OrderStatus.Cancelled) {
+      return { label: 'Bekor qilingan', color: '#6b7280', bg: '#e5e7eb' };
+    }
+    return { label: 'To‘lov kutilmoqda', color: '#b45309', bg: '#fef3c7' };
+  }
+
   canCustomerPay(order: Order): boolean {
     // Agar login qilgan user admin, branch manager yoki company admin bo'lsa yoki viewMode 'all' bo'lsa, to'lov tugmasi CHIQMAYDI
     if (this.authState.isAdminRole() || this.authState.isAdminMode() || this.viewMode === 'all') {
       return false;
     }
-    if (order.status === OrderStatus.Cancelled || order.status === OrderStatus.Delivered) {
+    // Jo'natildi (Shipped), Yetkazildi (Delivered), Bekor qilindi (Cancelled) yoki Tasdiqlangan (Confirmed) holatida to'lov qilish tugmasi ko'rinmaydi
+    if (
+      order.status === OrderStatus.Shipped ||
+      order.status === OrderStatus.Delivered ||
+      order.status === OrderStatus.Cancelled ||
+      order.status === OrderStatus.Confirmed
+    ) {
       return false;
     }
     const payment = this.getPayment(order.id);
@@ -1747,6 +2270,7 @@ export class OrdersListComponent implements OnInit {
     this.adminPaymentNote = '';
     this.adminPaymentMethod = 'Cash';
     this.showRejectReasonInput = false;
+    this.rejectReasonHasError = false;
     this.showAdminPaymentModal = true;
 
     const cId = order.customerId || (order as any).userId;
@@ -1765,9 +2289,27 @@ export class OrdersListComponent implements OnInit {
     this.adminReviewOrder = null;
     this.adminReviewPayment = null;
     this.showRejectReasonInput = false;
+    this.rejectReasonHasError = false;
     this.adminRejectReason = '';
     this.adminPaymentNote = '';
     this.isAdminProcessingPayment = false;
+  }
+
+  startRejectMode(): void {
+    this.showRejectReasonInput = true;
+    this.rejectReasonHasError = false;
+    setTimeout(() => {
+      const el = document.getElementById('adminRejectReasonInput');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.focus();
+      }
+    }, 100);
+  }
+
+  cancelRejectMode(): void {
+    this.showRejectReasonInput = false;
+    this.rejectReasonHasError = false;
   }
 
   confirmApprovePayment(): void {
@@ -1795,11 +2337,20 @@ export class OrdersListComponent implements OnInit {
   }
 
   confirmRejectPayment(): void {
-    if (!this.adminReviewPayment || !this.adminRejectReason.trim()) {
+    if (!this.adminReviewPayment) return;
+
+    if (!this.adminRejectReason || !this.adminRejectReason.trim()) {
+      this.rejectReasonHasError = true;
       this.notification.error('Iltimos, rad etish sababini kiriting!');
+      const el = document.getElementById('adminRejectReasonInput');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.focus();
+      }
       return;
     }
 
+    this.rejectReasonHasError = false;
     this.isAdminProcessingPayment = true;
     const paymentId = this.adminReviewPayment.id;
     const adminId = this.authState.currentUser()?.userId || this.authState.currentCustomerId() || 1;
@@ -1876,6 +2427,21 @@ export class OrdersListComponent implements OnInit {
   getBranchName(branchId: number): string {
     const branch = this.branches.find(b => b.id === branchId);
     return branch ? (branch.name || branch.address || `Filial #${branchId}`) : `Filial #${branchId}`;
+  }
+
+  hasBranchCoords(branchId: number): boolean {
+    const branch = this.branches.find(b => b.id === branchId);
+    if (!branch) return false;
+    let lat = branch.latitude != null ? Number(branch.latitude) : undefined;
+    let lng = branch.longitude != null ? Number(branch.longitude) : undefined;
+    if ((lat == null || isNaN(lat) || lng == null || isNaN(lng)) && branch.location) {
+      const match = branch.location.match(/(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)/);
+      if (match) {
+        lat = parseFloat(match[1]);
+        lng = parseFloat(match[2]);
+      }
+    }
+    return lat != null && lng != null && !isNaN(lat) && !isNaN(lng);
   }
 
   openCancelModal(order: Order): void {

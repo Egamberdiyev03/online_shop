@@ -27,64 +27,206 @@ export interface MapLocation {
   providedIn: 'root'
 })
 export class MapService {
-  // Toshkent markazi (default)
+  // Toshkent markazi (standart)
   readonly defaultCenter: MapLocation = {
     latitude: 41.2995,
     longitude: 69.2401,
-    address: 'Toshkent, O\'zbekiston'
+    address: "Toshkent, O'zbekiston"
   };
 
   readonly defaultZoom = 12;
   readonly markerZoom = 15;
 
+  private currentTileLayer?: L.TileLayer;
+
+  // OpenStreetMap - mutlaqo bepul, hech qanday API kalit talab qilmaydi
+  readonly osmTileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+
   /**
-   * Yangi xarita yaratish
+   * Xarita yaratish (OpenStreetMap bilan)
    */
-  createMap(elementId: string, center?: MapLocation, zoom?: number): L.Map {
+  createMap(elementId: string, center?: MapLocation, zoom?: number, isDark = false): L.Map {
     const loc = center || this.defaultCenter;
     const z = zoom || this.defaultZoom;
 
-    const map = L.map(elementId).setView([loc.latitude, loc.longitude], z);
+    const map = L.map(elementId, {
+      zoomControl: true,
+      attributionControl: true
+    }).setView([loc.latitude, loc.longitude], z);
 
-    // OpenStreetMap tile layer
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    // Ishonchli, bepul OpenStreetMap qatlami
+    this.currentTileLayer = L.tileLayer(this.osmTileUrl, {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
+
+    this.setTheme(map, isDark);
 
     return map;
   }
 
   /**
-   * Marker qo'shish
+   * Tun yoki Kun rejimini boshqarish (CSS filter orqali, API kalit talab qilmaydi)
    */
-  addMarker(map: L.Map, location: MapLocation, popupContent?: string): L.Marker {
-    const marker = L.marker([location.latitude, location.longitude]).addTo(map);
-
-    if (popupContent) {
-      marker.bindPopup(popupContent);
+  setTheme(map: L.Map, isDark: boolean): void {
+    const container = map.getContainer();
+    if (container) {
+      if (isDark) {
+        container.classList.add('dark-tiles-mode');
+      } else {
+        container.classList.remove('dark-tiles-mode');
+      }
     }
-
-    return marker;
   }
 
   /**
-   * Filial uchun custom marker
+   * Zamonaviy yumaloq pin (DivIcon) yaratish (inline styles bilan mustahkam)
    */
-  addBranchMarker(
-    map: L.Map,
-    location: MapLocation,
-    name: string,
-    address: string,
-    onClick?: () => void
-  ): L.Marker {
-    const popupContent = `
-      <div style="min-width: 180px;">
-        <h4 style="margin: 0 0 8px; font-size: 14px; color: #1e293b;">${name}</h4>
-        <p style="margin: 0; font-size: 12px; color: #64748b;">📍 ${address}</p>
+  createBranchPin(isSelected: boolean = false): L.DivIcon {
+    const size = isSelected ? 42 : 34;
+    const bg = isSelected
+      ? 'linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)'
+      : 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)';
+    const border = isSelected ? '3px solid #ffffff' : '2px solid #ffffff';
+    const shadow = isSelected ? '0 6px 20px rgba(244, 63, 94, 0.6)' : '0 4px 14px rgba(79, 70, 229, 0.45)';
+    const fontSize = isSelected ? '20px' : '16px';
+    const pulseHtml = isSelected
+      ? '<div class="pin-pulse" style="position: absolute; inset: -6px; border-radius: 50%; border: 2px solid rgba(244, 63, 94, 0.65); animation: pinPulseRing 1.8s infinite cubic-bezier(0.215, 0.61, 0.355, 1); pointer-events: none;"></div>'
+      : '';
+
+    const html = `
+      <div class="custom-map-pin ${isSelected ? 'active-pin' : ''}" style="position: relative; width: ${size}px; height: ${size}px; border-radius: 50%; background: ${bg}; display: flex; align-items: center; justify-content: center; box-shadow: ${shadow}; border: ${border}; cursor: pointer; transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);">
+        <div class="pin-inner" style="display: flex; align-items: center; justify-content: center; font-size: ${fontSize}; line-height: 1;">
+          <span class="pin-icon">🏬</span>
+        </div>
+        ${pulseHtml}
       </div>
     `;
 
-    const marker = this.addMarker(map, location, popupContent);
+    return L.divIcon({
+      html,
+      className: 'custom-map-pin-wrapper',
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+      popupAnchor: [0, -size / 2 - 6]
+    });
+  }
+
+  /**
+   * Filial uchun zamonaviy yagona Leaflet Popup HTML
+   */
+  createBranchPopupHtml(branch: any, canViewDetails: boolean): string {
+    const lat = Number(branch.latitude);
+    const lng = Number(branch.longitude);
+    const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+
+    const locationNote = branch.location && !branch.location.match(/^-?\d+\.?\d*\s*,\s*-?\d+\.?\d*$/)
+      ? this.escapeHtml(branch.location)
+      : null;
+
+    const safeName = this.escapeHtml(branch.name || '');
+    const safeAddress = this.escapeHtml(branch.address || '');
+    const safePhone = branch.phoneNumber ? this.escapeHtml(branch.phoneNumber) : '';
+
+    return `
+      <div class="leaflet-branch-popup-card">
+        <div class="popup-header">
+          <div class="popup-icon-badge">🏬</div>
+          <div class="popup-title-box">
+            <h4 class="popup-title">${safeName}</h4>
+            <span class="popup-id-chip">#${branch.id}</span>
+          </div>
+        </div>
+
+        <div class="popup-info-rows">
+          <div class="popup-row">
+            <span class="row-icon">📍</span>
+            <span class="row-text">${safeAddress}</span>
+          </div>
+          ${safePhone ? `
+            <div class="popup-row">
+              <span class="row-icon">📞</span>
+              <a href="tel:${safePhone}" class="row-phone-link">${safePhone}</a>
+            </div>
+          ` : ''}
+          ${locationNote ? `
+            <div class="popup-row note-row">
+              <span class="row-icon">🌐</span>
+              <span class="row-text">${locationNote}</span>
+            </div>
+          ` : ''}
+        </div>
+
+        <div class="popup-buttons">
+          <a href="${directionsUrl}" target="_blank" rel="noopener noreferrer" class="popup-btn btn-directions">
+            <span>🧭</span> Yoʻnalish olish
+          </a>
+          ${canViewDetails ? `
+            <button type="button" class="popup-btn btn-details leaflet-popup-branch-link" data-branch-id="${branch.id}">
+              Batafsil koʻrish &rarr;
+            </button>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  private escapeHtml(str: string): string {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  /**
+   * Filial uchun marker qo'shish (zamonaviy DivIcon va yagona popup bilan)
+   */
+  addBranchMarker(
+    map: L.Map,
+    branchOrLocation: any,
+    nameOrCanView?: string | boolean,
+    addressOrClick?: string | (() => void),
+    maybeClick?: () => void
+  ): L.Marker {
+    let lat: number;
+    let lng: number;
+    let branchObj: any;
+    let canViewDetails = false;
+    let onClick: (() => void) | undefined;
+
+    if (typeof nameOrCanView === 'string') {
+      // Eskicha shakl: (map, location, name, address, onClick)
+      lat = Number(branchOrLocation.latitude);
+      lng = Number(branchOrLocation.longitude);
+      branchObj = {
+        name: nameOrCanView,
+        address: typeof addressOrClick === 'string' ? addressOrClick : '',
+        latitude: lat,
+        longitude: lng,
+        id: branchOrLocation.id || 0
+      };
+      canViewDetails = false;
+      onClick = maybeClick;
+    } else {
+      // Yangicha shakl: (map, branch, canViewDetails, onClick)
+      branchObj = branchOrLocation;
+      lat = Number(branchObj.latitude);
+      lng = Number(branchObj.longitude);
+      canViewDetails = !!nameOrCanView;
+      onClick = typeof addressOrClick === 'function' ? (addressOrClick as () => void) : maybeClick;
+    }
+
+    const pinIcon = this.createBranchPin(false);
+    const marker = L.marker([lat, lng], { icon: pinIcon }).addTo(map);
+
+    const popupHtml = this.createBranchPopupHtml(branchObj, canViewDetails);
+    marker.bindPopup(popupHtml, {
+      maxWidth: 320,
+      minWidth: 260,
+      className: 'modern-leaflet-popup'
+    });
 
     if (onClick) {
       marker.on('click', onClick);
@@ -120,7 +262,7 @@ export class MapService {
   getCurrentLocation(): Promise<MapLocation> {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
-        reject(new Error('Geolocation qo\'llab-quvvatlanmaydi'));
+        reject(new Error("Geolocation qo'llab-quvvatlanmaydi"));
         return;
       }
 
@@ -133,7 +275,6 @@ export class MapService {
         },
         (error) => {
           console.warn('Geolocation xatosi:', error.message);
-          // Xato bo'lsa default lokatsiya qaytarish
           resolve(this.defaultCenter);
         },
         {
@@ -159,7 +300,7 @@ export class MapService {
         Math.sin(dLon / 2) *
         Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return Math.round(R * c * 10) / 10; // 1 raqam aniqlikda
+    return Math.round(R * c * 10) / 10;
   }
 
   private toRad(deg: number): number {

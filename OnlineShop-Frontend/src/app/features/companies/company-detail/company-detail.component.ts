@@ -119,7 +119,12 @@ import { LocationPickerComponent, SelectedLocation } from '../../../shared/compo
               <div class="branch-card-header">
                 <div class="branch-icon-title">
                   <span class="branch-ico">📍</span>
-                  <h3 class="branch-title" [routerLink]="['/branches', branch.id]" title="Filial ichiga kirish">
+                  <h3
+                    class="branch-title"
+                    [routerLink]="authState.canViewBranchDetails(branch) ? ['/branches', branch.id] : ['/map']"
+                    [queryParams]="authState.canViewBranchDetails(branch) ? null : { branch: branch.id }"
+                    [title]="authState.canViewBranchDetails(branch) ? 'Filial ichiga kirish' : 'Xaritada koʻrish'"
+                  >
                     {{ branch.name }}
                   </h3>
                 </div>
@@ -148,8 +153,11 @@ import { LocationPickerComponent, SelectedLocation } from '../../../shared/compo
 
               <!-- Main View Link Button -->
               <div class="branch-view-row">
-                <a [routerLink]="['/branches', branch.id]" class="btn btn-outline-primary btn-sm full-btn">
+                <a *ngIf="authState.canViewBranchDetails(branch)" [routerLink]="['/branches', branch.id]" class="btn btn-outline-primary btn-sm full-btn">
                   👁️ Filial Mahsulotlari va Boshqaruvi &rarr;
+                </a>
+                <a *ngIf="!authState.canViewBranchDetails(branch)" [routerLink]="['/map']" [queryParams]="{ branch: branch.id }" class="btn btn-outline-secondary btn-sm full-btn">
+                  🗺️ Xaritada koʻrish &rarr;
                 </a>
               </div>
 

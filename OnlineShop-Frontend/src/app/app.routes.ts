@@ -1,6 +1,6 @@
 import { AdminDashboardComponent } from './features/admin/admin-dashboard/admin-dashboard.component';
 import { Routes } from '@angular/router';
-import { customerGuard, superAdminGuard, adminGuard, authGuard } from './core/guards/auth.guard';
+import { customerGuard, superAdminGuard, adminGuard, authGuard, branchDetailGuard, analyticsGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
   {
@@ -40,7 +40,8 @@ export const routes: Routes = [
   },
   {
     path: 'branches/:id',
-    loadComponent: () => import('./features/companies/branch-detail/branch-detail.component').then(m => m.BranchDetailComponent)
+    loadComponent: () => import('./features/companies/branch-detail/branch-detail.component').then(m => m.BranchDetailComponent),
+    canActivate: [branchDetailGuard]
   },
   {
     path: 'map',
@@ -70,8 +71,23 @@ export const routes: Routes = [
   },
   {
     path: 'payments',
-    loadComponent: () => import('./features/placeholders/placeholder.component').then(m => m.PlaceholderComponent),
-    data: { type: 'payments' }
+    loadComponent: () => import('./features/payments/customer-payments-list/customer-payments-list.component').then(m => m.CustomerPaymentsListComponent),
+    canActivate: [authGuard]
+  },
+  {
+    path: 'payments/:id',
+    loadComponent: () => import('./features/payments/payment-detail/payment-detail.component').then(m => m.PaymentDetailComponent),
+    canActivate: [authGuard]
+  },
+  {
+    path: 'admin/payments',
+    loadComponent: () => import('./features/payments/admin-payments-list/admin-payments-list.component').then(m => m.AdminPaymentsListComponent),
+    canActivate: [adminGuard]
+  },
+  {
+    path: 'admin/payments/:id',
+    loadComponent: () => import('./features/payments/payment-detail/payment-detail.component').then(m => m.PaymentDetailComponent),
+    canActivate: [adminGuard]
   },
   {
     path: 'order-items',
@@ -82,6 +98,11 @@ export const routes: Routes = [
     path: 'admin',
     component: AdminDashboardComponent,
     canActivate: [adminGuard]
+  },
+  {
+    path: 'analytics',
+    component: AdminDashboardComponent,
+    canActivate: [analyticsGuard]
   },
   {
     path: '**',

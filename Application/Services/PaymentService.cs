@@ -35,10 +35,13 @@ namespace Application.Services
             var order = await _orderRepo.GetByIdAsync(dto.OrderId);
 
             if (order == null)
-                return new("sizda faol buyurtma mavjud emas", HttpStatusCode.Forbidden);
+                return new("sizda faol buyurtma mavjud emas", HttpStatusCode.NotFound);
 
             if (order.UserId != dto.UserId)
                 return new("Bu buyurtma sizning bo'yicha emas", HttpStatusCode.Forbidden);
+
+            if (order.Status == OrderStatus.Cancelled)
+                return new("Rad etilgan buyurtmaga tolov qilish mumkin emas", HttpStatusCode.BadRequest);
 
             if (order.Status == OrderStatus.Confirmed)
                 return new("Buyurtma uchun tolov amalga oshirilgan", HttpStatusCode.BadRequest);
@@ -50,7 +53,11 @@ namespace Application.Services
                 return new("To'lov summasi buyurtma summasiga teng bo'lishi kerak", HttpStatusCode.BadRequest);
 
 
+           
+
             var payment = _mapper.Map<Payment>(dto);
+
+            payment.CreatedAt = DateTime.UtcNow;
 
             await _payRepo.AddAsync(payment);
             await _payRepo.SaveChangesAsync();
@@ -66,26 +73,24 @@ namespace Application.Services
             if (payment == null)
                 return new("To'lov topilmadi", HttpStatusCode.NotFound);
 
+            if (payment.Status != PaymentStatus.Pending)
+                return new("Faqat kutilayotgan tolovni tasdiqlash mumkin", HttpStatusCode.BadRequest);
+
             if (payment.Status == PaymentStatus.Completed)
                 return new("To'lov allaqachon tasdiqlangan", HttpStatusCode.BadRequest);
 
             if (payment.Status == PaymentStatus.Cancelled)
                 return new("To`lov rad etilgan", HttpStatusCode.BadRequest);
 
+            if (payment.Order.Status == OrderStatus.Cancelled)
+                return new("Bu buyurtma bekor qilingan", HttpStatusCode.BadRequest);
+
             payment.Status = PaymentStatus.Completed;
             payment.ConfirmedByUserId = adminId;
             payment.ConfirmedAt = DateTime.UtcNow;
+            payment.Order.Status = OrderStatus.Confirmed;
 
-            await _payRepo.UpdateAsync(payment);
-
-            var order = await _orderRepo.GetByIdAsync(payment.OrderId);
-
-            if (order.Status == OrderStatus.Cancelled)
-                return new("Bu buyurtma rad etilgan", HttpStatusCode.BadRequest);
-
-            order.Status = OrderStatus.Confirmed;
-            await _orderRepo.UpdateAsync(order);
-            await _orderRepo.SaveChangesAsync();
+            await _payRepo.SaveChangesAsync();
 
             return new("To'lov muvaffaqiyatli tasdiqlandi", HttpStatusCode.OK, _mapper.Map<PaymentDto>(payment));
         }
@@ -118,20 +123,27 @@ namespace Application.Services
 
         public async Task<ResponseModel<PaymentDto>> RejectPaymentAsync(RejectPaymentDto dto, int adminId)
         {
-            var payment = await _payRepo.GetByIdAsync(dto.PaymentId);
+            var payment = await _payRepo.GetAsQueryable()
+                .Include(p=>p.Order)
+                .FirstOrDefaultAsync(d=>d.Id==dto.PaymentId);
 
             if (payment == null)
                 return new("To'lov topilmadi", HttpStatusCode.NotFound);
 
-            if (payment.Status == PaymentStatus.Completed)
-                return new("Tasdiqlangan to'lovni rad etib bo'lmaydi", HttpStatusCode.BadRequest);
+            if (payment.Status != PaymentStatus.Pending)
+                return new("Faqat kutilayotgan to'lovni rad etish mumkin", HttpStatusCode.BadRequest);
+
+            if (string.IsNullOrWhiteSpace(dto.Reason))
+                return new("Rad etish sababini kiriting", HttpStatusCode.BadRequest);
 
             payment.Status = PaymentStatus.Failed;
             payment.ConfirmedByUserId = adminId;
             payment.RejectionReason = dto.Reason;
             payment.ConfirmedAt = DateTime.UtcNow;
 
-            await _payRepo.UpdateAsync(payment);
+            if (payment.Order != null && payment.Order.Status == OrderStatus.Pending)
+                payment.Order.Status = OrderStatus.Cancelled;
+
             await _payRepo.SaveChangesAsync();
 
             return new("To'lov rad etildi", HttpStatusCode.OK, _mapper.Map<PaymentDto>(payment));
