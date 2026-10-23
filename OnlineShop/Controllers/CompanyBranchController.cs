@@ -11,9 +11,9 @@ using System.Security.Claims;
 
 namespace OnlineShop.Controllers
 {
-    [ApiController]
-    [Route("[controller]")]
-    public class CompanyBranchController  :ControllerBase
+    //[ApiController]
+    //[Route("[controller]")]
+    public class CompanyBranchController  : BaseController
     {
         private readonly ICompanyBranchService _service;
         public CompanyBranchController(ICompanyBranchService service )

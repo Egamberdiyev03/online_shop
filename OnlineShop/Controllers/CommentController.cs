@@ -7,9 +7,9 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace OnlineShop.Controllers
 {
-    [ApiController]
-    [Route("[controller]")]
-    public class CommentController : ControllerBase
+    //[ApiController]
+    //[Route("[controller]")]
+    public class CommentController : BaseController
     {
         private readonly ICommentService _commentService;
 

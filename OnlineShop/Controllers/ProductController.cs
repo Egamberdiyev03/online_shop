@@ -12,7 +12,6 @@ namespace OnlineShop.Controllers
     public class ProductController : ControllerBase
     {
         private readonly IProductService _service;
-        
         public ProductController(IProductService service)
         {
             _service = service;

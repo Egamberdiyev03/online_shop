@@ -4,6 +4,7 @@ using Application.Interfaces;
 using DataAccess.Repositories;
 using Domain.Entities;
 using Domain.Enums;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -66,8 +67,8 @@ namespace Application.Services
 
         public async Task<ResponseModel<AuthResponseDto>> ConfirmEmailAsync(ConfirmEmailDto dto)
         {
-            var user = _userRepo.GetAsQueryable()
-                 .FirstOrDefault(u => u.Email == dto.Email);
+            var user = await _userRepo.GetAsQueryable()
+                 .FirstOrDefaultAsync(u => u.Email == dto.Email);
 
             if (user == null)
                 return new("Foydalanuvchi topilmadi.",HttpStatusCode.NotFound);

@@ -5,9 +5,9 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace OnlineShop.Controllers
 {
-    [ApiController]
-    [Route("[controller]")]
-    public class AuthController : ControllerBase
+    //[ApiController]
+    //[Route("[controller]")]
+    public class AuthController : BaseController
     {
         private readonly IAuthService _authService;
         public AuthController(IAuthService authService)
