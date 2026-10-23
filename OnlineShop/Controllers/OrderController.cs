@@ -10,12 +10,9 @@ using System.Security.Claims;
 
 namespace OnlineShop.Controllers
 {
-    [ApiController]
-    [Route("[controller]")]
-    public class OrderController : ControllerBase
+    public class OrderController : BaseController 
     {
         private readonly IOrderService _orderService;
-
         public OrderController(IOrderService orderService)
         {
             _orderService = orderService;
@@ -37,17 +34,13 @@ namespace OnlineShop.Controllers
         }
 
         [HttpPost("Create")]
-        public Task<ResponseModel<bool>> CreateOrder (int userId, int branchId)
-        {
-            return   _orderService.CreateOrder(userId,branchId);
-        }
-
+        public async Task<ResponseModel<bool>> CreateOrder (int userId, int branchId)
+            => await _orderService.CreateOrder(userId,branchId);
+        
         [HttpGet("GetById")]
         public async Task<ResponseModel<OrderDto>> GetOrderById (int id)
-        {
-            return await _orderService.GetOrderById(id);
-        }
-
+            => await _orderService.GetOrderById(id);
+        
         // BranchManager ham ko'ra oladi, lekin faqat o'z filiali buyurtmalarini
         [Authorize(Roles = "SuperAdmin,CompanyAdmin,BranchManager")]
         [HttpGet("GetAll")]
@@ -64,7 +57,6 @@ namespace OnlineShop.Controllers
                     return await _orderService.GetOrdersByBranchId(userBranchId.Value);
                 }
                 return new("Filial topilmadi", HttpStatusCode.NotFound);
-              
             }
 
             return new(await _orderService.GetAllOrder());
@@ -72,11 +64,7 @@ namespace OnlineShop.Controllers
 
         [HttpGet("GetOrderByCustomerId")]
         public async Task<ResponseModel<List<OrderDto>>> GetOrderByUserId(int customerId)
-        {
-            var orders =  await _orderService.GetByOrderUserId(customerId);
-
-            return orders;
-        }
+           =>  await _orderService.GetByOrderUserId(customerId);
 
         // BranchManager ham o'z filiali buyurtmalarini yangilay oladi
         [Authorize(Roles = "SuperAdmin,CompanyAdmin,BranchManager")]
@@ -101,7 +89,6 @@ namespace OnlineShop.Controllers
                         "Siz faqat o'z filialingiz buyurtmalarini yangilay olasiz.",
                         HttpStatusCode.Forbidden);
                 }
-                
             }
 
             return await _orderService.UpdateOrderStatus(orderId, status);
@@ -109,10 +96,8 @@ namespace OnlineShop.Controllers
 
         [HttpPut("Cancel")]
         public async Task<ResponseModel<bool>> CancelOrder(int orderId)
-        {
-            return await _orderService.CancelOrder(orderId);
-        }
-
+            => await _orderService.CancelOrder(orderId);
+        
         // BranchManager ham chaqira oladi, lekin faqat o'z filiali uchun
         [Authorize(Roles = "SuperAdmin,CompanyAdmin,BranchManager")]
         [HttpGet("GetOrdersByBranchId")]
@@ -168,8 +153,6 @@ namespace OnlineShop.Controllers
         [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpGet("GetOrdersByDateRange")]
         public async Task<ResponseModel<List<OrderDto>>> GetOrdersByDateRange(DateTime from, DateTime to)
-        {
-            return await _orderService.GetOrdersByDateRange(from, to);
-        }
+            => await _orderService.GetOrdersByDateRange(from, to);
     }
 }

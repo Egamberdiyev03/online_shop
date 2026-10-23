@@ -8,9 +8,7 @@ using System.Net;
 
 namespace OnlineShop.Controllers
 {
-    [ApiController]
-    [Route("[controller]")]
-    public class UserController : ControllerBase
+    public class UserController : BaseController
     {
         private readonly IUserService _service;
 
@@ -35,7 +33,6 @@ namespace OnlineShop.Controllers
         [HttpPut("Update")]
         public async Task<ResponseModel<UserDto>> UpdateUser(UpdateUserDto dto)
              =>   await _service.UpdateUser(dto);
-
 
         [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpDelete("Delete")]

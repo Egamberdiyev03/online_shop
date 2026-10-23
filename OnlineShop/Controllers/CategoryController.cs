@@ -7,50 +7,35 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace OnlineShop.Controllers
 {
-    [ApiController]
-    [Route("[controller]")]
-
-    public class CategoryController : ControllerBase
+    public class CategoryController : BaseController
     {
         private readonly ICategoryService _categoryService;
-
         public CategoryController(ICategoryService categoryService)
         {
-
             _categoryService = categoryService;
         }
 
         [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpPost("Create")]
         public async Task<CategoryDto>  CreateCategory (CreateCategoryDto dto)
-        {
-           return await _categoryService.CreateCategory(dto);
-        }
-
+            => await _categoryService.CreateCategory(dto);
+        
         [HttpGet("GetById")]
         public async Task<ResponseModel<CategoryDto>> GetById(int id)
-        {
-           return await _categoryService.GetById(id);
-        }
-     
+            => await _categoryService.GetById(id);
+        
         [HttpGet("GetAll")]
         public async Task<List<CategoryDto>> GetAll()
-        {
-          return await  _categoryService.GetAll();
-        }
-
+            => await  _categoryService.GetAll();
+        
         [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpPut("Update")]
         public async Task<ResponseModel<CategoryDto>> UpdateCategory (UpdateCategoryDto dto)
-        {
-           return await _categoryService.UpdateCategory(dto);
-        }
-
+            => await _categoryService.UpdateCategory(dto);
+        
         [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpDelete("Delete")]
         public async Task<bool> DeleteCategory (int id)
-        {
-          return await  _categoryService.DeleteCategory(id);
-        }
+            => await  _categoryService.DeleteCategory(id);
     }
 }

@@ -11,9 +11,7 @@ using System.Security.Claims;
 
 namespace OnlineShop.Controllers
 {
-    [ApiController]
-    [Route("[controller]")]
-    public class CompanyBranchController  :ControllerBase
+    public class CompanyBranchController  : BaseController
     {
         private readonly ICompanyBranchService _service;
         public CompanyBranchController(ICompanyBranchService service )
@@ -39,16 +37,12 @@ namespace OnlineShop.Controllers
         [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpPost("Create")]
         public async Task<CompanyBranchDto> CreateCompanyBranch (CreateCompanyBranchDto dto)
-        {
-           return await _service.CreateCompanyBranch(dto);
-        }
-
+            => await _service.CreateCompanyBranch(dto);
+        
         // Filiallar ro'yxati Customer uchun ham ochiq (buyurtma berish va savat uchun kerak)
         [HttpGet("GetAll")]
         public async Task<List<CompanyBranchDto>> GetAllCompanyBranch ()
-        {
-           return await _service.GetAllCompanyBranchesAsync();
-        }
+            => await _service.GetAllCompanyBranchesAsync();
 
         // BranchManager o'z filialini ko'ra oladi
         [Authorize(Roles = "SuperAdmin,CompanyAdmin,BranchManager")]
@@ -73,17 +67,13 @@ namespace OnlineShop.Controllers
         [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpPut("Update")]
         public async Task<ResponseModel<CompanyBranchDto>> UpdateCompanyBranch (UpdateCompanyBranchDto dto)
-        {
-            return await _service.UpdateCompanyBranch(dto);
-        }
+            => await _service.UpdateCompanyBranch(dto);
 
         [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpDelete("Delete")]
         public async Task<ResponseModel<bool>> DeleteCompanyBranch (int id)
-        {
-            return await _service.DeleteCompanyBranch(id);
-        }
-
+            => await _service.DeleteCompanyBranch(id);
+        
         // BranchManager o'z filiali mahsulotlarini ko'ra oladi
         [Authorize(Roles = "SuperAdmin,CompanyAdmin,BranchManager")]
         [HttpGet("GetCompanyBranchAllProduct")]
@@ -100,10 +90,7 @@ namespace OnlineShop.Controllers
                     return Forbid();
                 }
             }
-
             return await _service.GetCompanyBranchAllProduct(companybranchid);
         }
-
-
     }
 }
