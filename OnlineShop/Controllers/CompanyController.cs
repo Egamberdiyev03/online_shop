@@ -8,9 +8,9 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace OnlineShop.Controllers
 {
-    //[ApiController]
-    //[Route("[controller]")]
-    public class CompanyController : BaseController
+    [ApiController]
+    [Route("[controller]")]
+    public class CompanyController : ControllerBase
     {
         private readonly ICompanyService _service;
 
@@ -35,7 +35,8 @@ namespace OnlineShop.Controllers
         [HttpGet("GetAll")]
         public async Task<List<CompanyDto>> GetAllCompany()
         {
-            return  await _service.GetAllCompanies();
+            var companies = await _service.GetAllCompanies();
+            return companies;
         }
 
         [Authorize(Roles = "SuperAdmin")]
@@ -57,5 +58,7 @@ namespace OnlineShop.Controllers
         {
            return await _service.GetBranchesByCompanyId(companyId);
         }
+
+
     }
 }

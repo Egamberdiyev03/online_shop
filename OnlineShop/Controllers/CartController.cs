@@ -6,9 +6,9 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace OnlineShop.Controllers
 {
-    //[ApiController]
-    //[Route("api/[controller]/[action]")]
-    public class CartController : BaseController
+    [ApiController]
+    [Route("[controller]")]
+    public class CartController : ControllerBase
     {
         private readonly ICartService _cartService;
         public CartController(ICartService cartService)
@@ -47,6 +47,7 @@ namespace OnlineShop.Controllers
         {
           return await  _cartService.AddItemToCartAsync(UserId, productId, quantity);
         }
+
 
         [HttpGet("GetByCustomerIdCart")]
         public Task<ResponseModel<CartDto>> GetByUserIdCart(int UserId)

@@ -7,14 +7,16 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace OnlineShop.Controllers
 {
-    //[ApiController]
-    //[Route("[controller]")]
-    public class CategoryController : BaseController
+    [ApiController]
+    [Route("[controller]")]
+
+    public class CategoryController : ControllerBase
     {
         private readonly ICategoryService _categoryService;
 
         public CategoryController(ICategoryService categoryService)
         {
+
             _categoryService = categoryService;
         }
 

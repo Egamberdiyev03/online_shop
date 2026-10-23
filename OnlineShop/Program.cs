@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using OnlineShop;
 using System.Text;
 
 
@@ -78,8 +77,38 @@ builder.Services.AddSwaggerGen(c =>
 
 builder.Services.AddAutoMapper(cfg => { }, typeof(AutoMapping).Assembly);
 
-builder.Services.AddRepositories();
-builder.Services.AddServices();
+//builder.Services.AddScoped<Repository<Customer>>();
+//builder.Services.AddScoped<Repository<Category>>();
+//builder.Services.AddScoped<Repository<CompanyBranch>>();
+builder.Services.AddScoped<IRepository<Company>,Repository<Company>>();
+builder.Services.AddScoped<IRepository<User>,Repository<User>>();
+builder.Services.AddScoped<IRepository<CartItem>, Repository<CartItem>>();
+builder.Services.AddScoped<IRepository<Order>, Repository<Order>>();
+builder.Services.AddScoped<IRepository<Category>, Repository<Category>>();
+builder.Services.AddScoped<IRepository<Product>, Repository<Product>>();
+builder.Services.AddScoped<IRepository<Cart>, Repository<Cart>>();
+builder.Services.AddScoped<IRepository<CompanyBranch>, Repository<CompanyBranch>>();
+builder.Services.AddScoped<IRepository<Comment>, Repository<Comment>>();
+builder.Services.AddScoped<IRepository<Payment>, Repository<Payment>>();
+
+builder.Services.AddScoped<IUserService,UserService>();
+builder.Services.AddScoped<IProductService,ProductService>();
+builder.Services.AddScoped<ICategoryService,CategoryService>();
+builder.Services.AddScoped<ICompanyService,CompanyService>();
+builder.Services.AddScoped<ICompanyBranchService, CompanyBranchService>();
+builder.Services.AddScoped<ICartService,CartService>();
+builder.Services.AddScoped<IOrderService,OrderService>();
+builder.Services.AddScoped<ICommentService,CommentService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+
+//builder.Services.AddScoped<CartService>();
+//builder.Services.AddScoped<OrderService>();
+//builder.Services.AddScoped<CommentService>();
+
 
 builder.Services.AddDbContext<AppDbContext>(options=>
 {

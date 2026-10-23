@@ -8,9 +8,9 @@ using System.Net;
 
 namespace OnlineShop.Controllers
 {
-    //[ApiController]
-    //[Route("[controller]")]
-    public class UserController : BaseController
+    [ApiController]
+    [Route("[controller]")]
+    public class UserController : ControllerBase
     {
         private readonly IUserService _service;
 

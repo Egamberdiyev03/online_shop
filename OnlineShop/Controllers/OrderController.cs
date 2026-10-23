@@ -10,9 +10,9 @@ using System.Security.Claims;
 
 namespace OnlineShop.Controllers
 {
-    //[ApiController]
-    //[Route("[controller]")]
-    public class OrderController : BaseController
+    [ApiController]
+    [Route("[controller]")]
+    public class OrderController : ControllerBase
     {
         private readonly IOrderService _orderService;
 

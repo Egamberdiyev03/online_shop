@@ -7,9 +7,9 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace OnlineShop.Controllers
 {
-    //[ApiController]
-    //[Route("[controller]")]
-    public class PaymentController : BaseController
+    [ApiController]
+    [Route("[controller]")]
+    public class PaymentController : ControllerBase
     {
         private readonly IPaymentService _paymentService;
 
