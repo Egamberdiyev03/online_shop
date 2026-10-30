@@ -1,4 +1,4 @@
-﻿using Application.DTOs.Payment;
+using Application.DTOs.Payment;
 using Application.Extentions;
 using Application.Interfaces;
 using Domain.Enums;
@@ -20,21 +20,21 @@ namespace OnlineShop.Controllers
             => await _paymentService.CreatePaymentAsync(dto);
         
         [HttpPost("confirm/{paymentId}")]
-        public async Task<ResponseModel<PaymentDto>> ConfirmPayment(int paymentId,int adminId)
+        public async Task<ResponseModel<PaymentDto>> ConfirmPayment(int paymentId, int adminId)
              => await _paymentService.ConfirmPaymentAsync(paymentId, adminId);
         
         [HttpGet("get-by-order/{orderId}")]
-        public async Task<ResponseModel<PaymentDto>> GetPaymentByOrderId(int orderId)
-             => await _paymentService.GetPaymentByOrderIdAsync(orderId);
+        public async Task<ResponseModel<PaymentDto>> GetPaymentByOrderId(int orderId, [FromQuery] int userId = 0)
+             => await _paymentService.GetPaymentByOrderIdAsync(orderId, userId);
         
-        [Authorize(Roles ="SuperAdmin,CompanyAdmin,BranchAdmin")]
+        [Authorize(Roles = "SuperAdmin,CompanyAdmin,BranchManager,BranchAdmin")]
         [HttpGet("get-all")] 
         public async Task<ResponseModel<List<PaymentDto>>> GetAllPayments([FromQuery] PaymentStatus? status, [FromQuery] int? branchId)
              => await _paymentService.GetAllPaymentsAsync(status, branchId);
         
         [HttpPost("reject")]
         public async Task<ResponseModel<PaymentDto>> RejectPayment(RejectPaymentDto dto, int adminId)
-             => await _paymentService.RejectPaymentAsync( dto, adminId);
+             => await _paymentService.RejectPaymentAsync(dto, adminId);
         
         [HttpPost("upload-receipt")]
         public async Task<ResponseModel<string>> UploadReceipt(IFormFile file)

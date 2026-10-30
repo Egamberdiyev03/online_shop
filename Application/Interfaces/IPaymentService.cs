@@ -1,4 +1,4 @@
-﻿using Application.DTOs.Payment;
+using Application.DTOs.Payment;
 using Application.Extentions;
 using Domain.Enums;
 using Microsoft.AspNetCore.Http;
@@ -16,7 +16,7 @@ namespace Application.Interfaces
 
         Task<ResponseModel<PaymentDto>> ConfirmPaymentAsync(int paymentId, int adminId);
 
-        Task<ResponseModel<PaymentDto>> GetPaymentByOrderIdAsync(int orderId);
+        Task<ResponseModel<PaymentDto>> GetPaymentByOrderIdAsync(int orderId, int userId = 0);
         Task<ResponseModel<List<PaymentDto>>> GetAllPaymentsAsync(PaymentStatus? status, int? branchId);
         Task<ResponseModel<PaymentDto>> RejectPaymentAsync(RejectPaymentDto dto, int adminId);
 

@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -20,15 +21,23 @@ namespace Application.Services
     {
         private readonly IRepository<Payment> _payRepo;
         private readonly IRepository<Order> _orderRepo;
+        private readonly IRepository<User> _userRepo;
+        private readonly INotificationService _notifyService;
         private readonly IMapper _mapper;
 
-        public PaymentService(IRepository<Payment> payRepo, IRepository<Order> orderRepo, IMapper mapper)
+        public PaymentService(
+            IRepository<Payment> payRepo,
+            IRepository<Order> orderRepo,
+            IRepository<User> userRepo,
+            IMapper mapper,
+            INotificationService notifyService)
         {
             _payRepo = payRepo;
             _orderRepo = orderRepo;
+            _userRepo = userRepo;
             _mapper = mapper;
+            _notifyService = notifyService;
         }
-
 
         public async Task<ResponseModel<PaymentDto>> CreatePaymentAsync(CreatePaymentDto dto)
         {
@@ -52,15 +61,32 @@ namespace Application.Services
             if (dto.Amount != order.TotalPrice)
                 return new("To'lov summasi buyurtma summasiga teng bo'lishi kerak", HttpStatusCode.BadRequest);
 
-
-           
-
             var payment = _mapper.Map<Payment>(dto);
 
-            payment.CreatedAt = DateTime.UtcNow;
+            payment.CreatedAt = DateTime.UtcNow.AddHours(5);
 
             await _payRepo.AddAsync(payment);
             await _payRepo.SaveChangesAsync();
+
+            // Adminlarga (SuperAdmin va shu filial mudirlariga) chek kelgani haqida xabar yuborish
+            var adminUsers = await _userRepo.GetAsQueryable()
+                .Where(u => u.Role == Role.SuperAdmin ||(u.Role==Role.BranchManager && u.CompanyBranchId == order.CompanyBranchId))
+                .Select(u => u.Id)
+                .ToListAsync();
+
+            if (adminUsers.Any())
+            {
+                await _notifyService.SendToUsersAsync(adminUsers, NotificationFactory.PaymentSucceededForBranch(order.Id, order.CompanyBranchId));//new NotificationRequest(
+                  /*  Type: NotificationType.PaymentSucceeded,
+                    Title: "Yangi to'lov cheki keldi",
+                    Body: $"#{order.Id} buyurtma uchun to'lov cheki yuborildi. Tasdiqlashingiz kutilmoqda.",
+                    EntityType: NotificationEntityType.Order,
+                    EntityId: order.Id,
+                    BranchId: order.CompanyBranchId,
+                    Priority: NotificationPriority.High,
+                    Link: "/orders"
+                ));*/
+            }
 
             var paymentDto = _mapper.Map<PaymentDto>(payment);
             return new("To'lov muvaffaqiyatli amalga oshirildi", HttpStatusCode.OK, paymentDto);
@@ -68,7 +94,9 @@ namespace Application.Services
 
         public async Task<ResponseModel<PaymentDto>> ConfirmPaymentAsync(int paymentId, int adminId)
         {
-            var payment = await _payRepo.GetByIdAsync(paymentId);
+            var payment = await _payRepo.GetAsQueryable()
+                .Include(p => p.Order)
+                .FirstOrDefaultAsync(p => p.Id == paymentId);
 
             if (payment == null)
                 return new("To'lov topilmadi", HttpStatusCode.NotFound);
@@ -82,18 +110,28 @@ namespace Application.Services
             if (payment.Status == PaymentStatus.Cancelled)
                 return new("To`lov rad etilgan", HttpStatusCode.BadRequest);
 
-            if (payment.Order.Status == OrderStatus.Cancelled)
+            if (payment.Order != null && payment.Order.Status == OrderStatus.Cancelled)
                 return new("Bu buyurtma bekor qilingan", HttpStatusCode.BadRequest);
 
             payment.Status = PaymentStatus.Completed;
             payment.ConfirmedByUserId = adminId;
-            payment.ConfirmedAt = DateTime.UtcNow;
-            payment.Order.Status = OrderStatus.Confirmed;
+            payment.ConfirmedAt = DateTime.UtcNow.AddHours(5);
+
+            if (payment.Order != null)
+            {
+                payment.Order.Status = OrderStatus.Confirmed;
+            }
 
             await _payRepo.SaveChangesAsync();
 
+            if (payment.Order != null)
+            {
+                await _notifyService.SendAsync(payment.Order.UserId, NotificationFactory.PaymentSucceeded(payment.Order.Id, adminId));
+            }
+
             return new("To'lov muvaffaqiyatli tasdiqlandi", HttpStatusCode.OK, _mapper.Map<PaymentDto>(payment));
         }
+
         public async Task<ResponseModel<List<PaymentDto>>> GetAllPaymentsAsync(PaymentStatus? status, int? branchId)
         {
             var payments = await _payRepo.GetAsQueryable()
@@ -108,12 +146,19 @@ namespace Application.Services
             return new("To'lovlar muvaffaqiyatli olindi", HttpStatusCode.OK, paymentdtos);
         }
 
-        public async Task<ResponseModel<PaymentDto>> GetPaymentByOrderIdAsync(int orderId)
+        public async Task<ResponseModel<PaymentDto>> GetPaymentByOrderIdAsync(int orderId, int userId = 0)
         {
-            var payment = await _payRepo.GetAsQueryable()
+            var query = _payRepo.GetAsQueryable()
                 .AsNoTracking()
                 .Include(p => p.Order)
-                .FirstOrDefaultAsync(p => p.OrderId == orderId);
+                .Where(p => p.OrderId == orderId);
+
+            if (userId > 0)
+            {
+                query = query.Where(p => p.Order.UserId == userId);
+            }
+
+            var payment = await query.FirstOrDefaultAsync();
 
             if (payment == null)
                 return new("To'lov topilmadi", HttpStatusCode.NotFound);
@@ -124,8 +169,8 @@ namespace Application.Services
         public async Task<ResponseModel<PaymentDto>> RejectPaymentAsync(RejectPaymentDto dto, int adminId)
         {
             var payment = await _payRepo.GetAsQueryable()
-                .Include(p=>p.Order)
-                .FirstOrDefaultAsync(d=>d.Id==dto.PaymentId);
+                .Include(p => p.Order)
+                .FirstOrDefaultAsync(d => d.Id == dto.PaymentId);
 
             if (payment == null)
                 return new("To'lov topilmadi", HttpStatusCode.NotFound);
@@ -139,7 +184,7 @@ namespace Application.Services
             payment.Status = PaymentStatus.Failed;
             payment.ConfirmedByUserId = adminId;
             payment.RejectionReason = dto.Reason;
-            payment.ConfirmedAt = DateTime.UtcNow;
+            payment.ConfirmedAt = DateTime.UtcNow.AddHours(5);
 
             if (payment.Order != null && payment.Order.Status == OrderStatus.Pending)
                 payment.Order.Status = OrderStatus.Cancelled;
@@ -181,4 +226,4 @@ namespace Application.Services
             return new("Fayl muvaffaqiyatli yuklandi", HttpStatusCode.OK, fileUrl);
         }
     }
-} 
+}

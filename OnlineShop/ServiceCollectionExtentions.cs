@@ -1,5 +1,6 @@
 ﻿using Application.Interfaces;
 using Application.Services;
+using DataAccess.Repositories;
 
 namespace OnlineShop
 {
@@ -16,9 +17,13 @@ namespace OnlineShop
             services.AddScoped<IOrderService, OrderService>();
             services.AddScoped<ICommentService, CommentService>();
             services.AddScoped<IPaymentService, PaymentService>();
+
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<ITokenService, TokenService>();
             services.AddScoped<IEmailService, EmailService>();
+
+            services.AddScoped<INotificationRepository, NotificationRepository>();
+            services.AddScoped<INotificationService, NotificationService>();
             return services;
         }
     }

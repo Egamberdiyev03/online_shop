@@ -32,5 +32,9 @@ namespace OnlineShop.Controllers
         [HttpPost("ResetPassword")]
         public async Task<ResponseModel<string>> ResetPassword(ResetPasswordDto dto)
             => await _authService.ResetPasswordAsync(dto);
+
+        [HttpPost("TelegramAuth")]
+        public async Task<ResponseModel<AuthResponseDto>> TelegramAuth(TelegramAuthDto dto)
+    => await _authService.TelegramAuthAsync(dto);
     }
 }

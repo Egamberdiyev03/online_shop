@@ -4,12 +4,10 @@ using Application.Interfaces;
 using DataAccess.Repositories;
 using Domain.Entities;
 using Domain.Enums;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+using Microsoft.EntityFrameworkCore;
 using System.Net;
-using System.Text;
-using System.Threading.Tasks;
+using Telegram.Bot.Types;
+using User = Domain.Entities.User;
 
 namespace Application.Services
 {
@@ -45,7 +43,7 @@ namespace Application.Services
                 Address = dto.Address,
                 Location = dto.Location,
                 Role = Role.Customer,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow.AddHours(5),
                 IsEmailConfirmed = false,
                 EmailConfirmationCode = code,
                 EmailConfirmationCodeExpiry = DateTime.UtcNow.AddMinutes(10)
@@ -78,7 +76,7 @@ namespace Application.Services
             if (user.EmailConfirmationCode != dto.Code)
                 return new("Kod noto'g'ri.",HttpStatusCode.Unauthorized);
 
-            if (user.EmailConfirmationCodeExpiry < DateTime.UtcNow)
+            if (user.EmailConfirmationCodeExpiry < DateTime.UtcNow.AddHours(5))
                  return new("Kodning amal qilish muddati tugagan. Yangi kod so'rang.",HttpStatusCode.Unauthorized);
 
             user.IsEmailConfirmed = true;
@@ -134,7 +132,7 @@ namespace Application.Services
             if (string.IsNullOrWhiteSpace(user.EmailConfirmationCode) || user.EmailConfirmationCode != dto.Code)
                 return new("Tasdiqlash kodi noto'g'ri.", HttpStatusCode.Unauthorized);
 
-            if (user.EmailConfirmationCodeExpiry < DateTime.UtcNow)
+            if (user.EmailConfirmationCodeExpiry < DateTime.UtcNow.AddHours(5))
                 return new("Kodning amal qilish muddati tugagan. Yangi kod so'rang.", HttpStatusCode.Unauthorized);
 
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
@@ -144,6 +142,58 @@ namespace Application.Services
             await _userRepo.SaveChangesAsync();
 
             return new("Parolingiz muvaffaqiyatli yangilandi. Yangi parol bilan tizimga kirishingiz mumkin.");
+        }
+
+        public async Task<ResponseModel<AuthResponseDto>> TelegramAuthAsync(TelegramAuthDto dto)
+        {
+            var user = await _userRepo.GetAsQueryable()
+                .FirstOrDefaultAsync(u => u.TelegramChatId == dto.TelegramChatId);
+             
+            if(user == null)
+            {
+                if (string.IsNullOrWhiteSpace(dto.PhoneNumber))
+                    return new("Telefon raqam kerak", HttpStatusCode.NotFound);
+
+                user = new User
+                {
+                    Name = dto.Name,
+                    PhoneNumber = dto.PhoneNumber,
+                    TelegramChatId = dto.TelegramChatId,
+                    TelegramUsername = dto.TelegramUsername,
+                    Role = Role.Customer,
+                    CreatedAt = DateTime.UtcNow.AddHours(5),
+                    IsTelegramConfirmed = true,
+                    IsEmailConfirmed = false,
+                    PasswordHash=string.Empty,
+                    Email = string.Empty,
+                    Address = string.Empty,
+                    Location = string.Empty,
+
+                };
+                await _userRepo.AddAsync(user);
+                await _userRepo.SaveChangesAsync();
+            }
+            // 3. Agar eski foydalanuvchi bo'lsa -> yangi telefon raqami yoki username bo'lsa yangilab qo'yamiz (Login)
+
+            bool isUpdated = false;
+
+            if (!string.IsNullOrWhiteSpace(dto.PhoneNumber) && user.PhoneNumber != dto.PhoneNumber)
+            {
+                user.PhoneNumber = dto.PhoneNumber;
+                isUpdated = true;
+            }
+            if (!string.IsNullOrWhiteSpace(dto.TelegramUsername))
+            {
+                user.TelegramUsername = dto.TelegramUsername;
+                isUpdated = true;
+            }
+
+            if (isUpdated)
+                await _userRepo.SaveChangesAsync();
+        
+        // 4. JWT token generatsiya qilamiz va qaytaramiz
+             var authResponse = _tokenService.GenerateToken(user);
+             return new ("Muvaffaqiyatli", HttpStatusCode.OK, authResponse);
         }
     }
 }

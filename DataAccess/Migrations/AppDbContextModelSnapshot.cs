@@ -234,7 +234,7 @@ namespace DataAccess.Migrations
                     b.ToTable("company_branches", (string)null);
                 });
 
-            modelBuilder.Entity("Domain.Entities.Order", b =>
+            modelBuilder.Entity("Domain.Entities.Notification", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -243,9 +243,73 @@ namespace DataAccess.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("BranchId")
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("body");
+
+                    b.Property<int?>("BranchId")
                         .HasColumnType("integer")
                         .HasColumnName("branch_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_read");
+
+                    b.Property<string>("Link")
+                        .HasColumnType("text")
+                        .HasColumnName("link");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("integer")
+                        .HasColumnName("priority");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("read_at");
+
+                    b.Property<long?>("RelatedEntityId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("related_entity_id");
+
+                    b.Property<int?>("RelatedEntityType")
+                        .HasColumnType("integer")
+                        .HasColumnName("related_entity_type");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("title");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer")
+                        .HasColumnName("type");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_notifications");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_notifications_user_id");
+
+                    b.ToTable("notifications", (string)null);
+                });
+
+            modelBuilder.Entity("Domain.Entities.Order", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<int>("CompanyBranchId")
                         .HasColumnType("integer")
@@ -487,6 +551,10 @@ namespace DataAccess.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_email_confirmed");
 
+                    b.Property<bool>("IsTelegramConfirmed")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_telegram_confirmed");
+
                     b.Property<string>("Location")
                         .IsRequired()
                         .HasColumnType("text")
@@ -510,6 +578,14 @@ namespace DataAccess.Migrations
                     b.Property<int>("Role")
                         .HasColumnType("integer")
                         .HasColumnName("role");
+
+                    b.Property<long?>("TelegramChatId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("telegram_chat_id");
+
+                    b.Property<string>("TelegramUsername")
+                        .HasColumnType("text")
+                        .HasColumnName("telegram_username");
 
                     b.HasKey("Id")
                         .HasName("pk_users");
@@ -581,6 +657,16 @@ namespace DataAccess.Migrations
                         .HasConstraintName("fk_company_branches_companies_company_id");
 
                     b.Navigation("Company");
+                });
+
+            modelBuilder.Entity("Domain.Entities.Notification", b =>
+                {
+                    b.HasOne("Domain.Entities.User", null)
+                        .WithMany("Notifications")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_notifications_users_user_id");
                 });
 
             modelBuilder.Entity("Domain.Entities.Order", b =>
@@ -699,6 +785,8 @@ namespace DataAccess.Migrations
                         .IsRequired();
 
                     b.Navigation("Comments");
+
+                    b.Navigation("Notifications");
 
                     b.Navigation("Orders");
                 });

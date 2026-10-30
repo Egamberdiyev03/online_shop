@@ -1,6 +1,8 @@
+using Application.Hubs;
 using Application.Interfaces;
 using Application.Mapping;
 using Application.Services;
+using Application.Services.Bot;
 using DataAccess.Database;
 using DataAccess.Repositories;
 using Domain.Entities;
@@ -9,7 +11,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using OnlineShop;
+using OnlineShop.BacroundServices;
 using System.Text;
+using System.Text.Json.Serialization;
+using Telegram.Bot.Polling;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -22,7 +27,7 @@ builder.Services.AddCors(o => o.AddPolicy("Front", p => p
     "http://onlineshopuz.runasp.net", 
     "https://onlineshopuz.runasp.net", 
     "http://localhost:4200")
-    .AllowAnyHeader().AllowAnyMethod()));
+    .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 builder.Services.AddAuthentication(options =>
@@ -42,6 +47,20 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = jwtSettings["Issuer"],
         ValidAudience = jwtSettings["Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]!))
+    };
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            // If the request is for the SignalR hub, get the token from the query string
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/notificationHub"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
     };
 });
 
@@ -78,18 +97,16 @@ builder.Services.AddSwaggerGen(c =>
 
 builder.Services.AddAutoMapper(cfg => { }, typeof(AutoMapping).Assembly);
 
-//builder.Services.AddScoped<IRepository<Company>,Repository<Company>>();
-//builder.Services.AddScoped<IRepository<User>,Repository<User>>();
-//builder.Services.AddScoped<IRepository<CartItem>, Repository<CartItem>>();
-//builder.Services.AddScoped<IRepository<Order>, Repository<Order>>();
-//builder.Services.AddScoped<IRepository<Category>, Repository<Category>>();
-//builder.Services.AddScoped<IRepository<Product>, Repository<Product>>();
-//builder.Services.AddScoped<IRepository<Cart>, Repository<Cart>>();
-//builder.Services.AddScoped<IRepository<CompanyBranch>, Repository<CompanyBranch>>();
-//builder.Services.AddScoped<IRepository<Comment>, Repository<Comment>>();
-//builder.Services.AddScoped<IRepository<Payment>, Repository<Payment>>();
 builder.Services.AddRepositories();
 builder.Services.AddServices();
+builder.Services.AddSingleton<IUpdateHandler, BotUpdateHandler>();
+builder.Services.AddHostedService<TelegramBotBackgroundService>();
+
+builder.Services.AddControllers()
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+
+builder.Services.AddSignalR()
+    .AddJsonProtocol(o => o.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
 builder.Services.AddDbContext<AppDbContext>(options=>
 {
@@ -119,6 +136,8 @@ app.UseSwagger();
 app.UseCors("Front");
 app.UseStaticFiles();
 app.UseAuthentication();
+
+app.MapHub<NotificationHub>("/notificationHub");
 
 app.UseAuthorization();
 

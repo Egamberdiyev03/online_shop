@@ -25,10 +25,16 @@ namespace Domain.Entities
         public string? EmailConfirmationCode { get; set; }
         public DateTime? EmailConfirmationCodeExpiry { get; set; }
 
+        // Telegram integratsiya
+        public long? TelegramChatId { get; set; }
+        public bool IsTelegramConfirmed { get; set; } = false;
+        public string? TelegramUsername { get; set; }
+
 
         public List<Order> Orders { get; set; } 
         public Cart Cart { get; set; }  
         public List<Comment> Comments { get; set; }
+        public List<Notification> Notifications { get; set; }
 
     }
 }

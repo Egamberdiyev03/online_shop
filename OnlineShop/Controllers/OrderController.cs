@@ -27,7 +27,7 @@ namespace OnlineShop.Controllers
             return null;
         }
 
-        // Token'dan rolni olish
+        // Tokendan rolni olish
         private string? GetCurrentUserRole()
         {
             return User.FindFirst(ClaimTypes.Role)?.Value;
@@ -62,7 +62,7 @@ namespace OnlineShop.Controllers
             return new(await _orderService.GetAllOrder());
         }
 
-        [HttpGet("GetOrderByCustomerId")]
+        [HttpGet("GetOrderByUserId")]
         public async Task<ResponseModel<List<OrderDto>>> GetOrderByUserId(int customerId)
            =>  await _orderService.GetByOrderUserId(customerId);
 

@@ -28,7 +28,7 @@ namespace Application.Services
         public async Task<ProductDto> CreateProduct (CreateProductDto dto)
         {
             var product = _mapper.Map<Product>(dto);
-            product.CreatedAt = DateTime.UtcNow;
+            product.CreatedAt = DateTime.UtcNow.AddHours(5);
 
             await _productRepository.AddAsync(product);
             await _productRepository.SaveChangesAsync();

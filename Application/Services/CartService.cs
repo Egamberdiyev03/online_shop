@@ -15,49 +15,48 @@ namespace Application.Services
         private readonly IRepository<Cart> _cartRepository;
         private readonly IRepository<Product> _prooductRepository;
         private readonly IRepository<CartItem> _cartItemRepository;
+        private readonly IRepository<User> _userRepo;
 
         public CartService
             (
             IRepository<Cart> cartRepository,
             IRepository<Product> productRepository,
-            IRepository<CartItem> cartItemRepository)
+            IRepository<CartItem> cartItemRepository,
+            IRepository<User> userRepo )
         {
             _cartRepository = cartRepository;
             _cartItemRepository = cartItemRepository;
             _prooductRepository = productRepository;
+            _userRepo = userRepo;
         }
         public async Task<ResponseModel<CartDto>> CreateCartAsync(CreateCartDto cart)
         {
-            var existingCart = await _cartRepository.GetAsQueryable()
-                .FirstOrDefaultAsync(d => d.UserId == cart.UserId);
+            var userExists = await _userRepo.GetAsQueryable()
+                .AnyAsync(u => u.Id == cart.UserId);
 
-            if (existingCart == null)
-                return new("User Topilmadi", HttpStatusCode.BadRequest);
+            if (!userExists)
+                return new("User topilmadi", HttpStatusCode.NotFound);
 
-            if(existingCart !=null)
-            {
-                return new(new CartDto
-                {
-                    Id = existingCart.Id,
-                    UserId = existingCart.UserId,
-                    CreatedAt = existingCart.CreatedAt
-                });
-            }
+            var cartExists = await _cartRepository.GetAsQueryable()
+                .AnyAsync(c => c.UserId == cart.UserId);
 
-            var cartEntity = new Cart
+            if (cartExists)
+                return new("Bu userda allaqachon savatcha yaratilgan", HttpStatusCode.BadRequest);
+
+            var newCart = new Cart
             {
                 UserId = cart.UserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow.AddHours(5)
             };
 
-            await _cartRepository.AddAsync(cartEntity);
+            await _cartRepository.AddAsync(newCart);
             await _cartRepository.SaveChangesAsync();
 
             return new(new CartDto
             {
-                Id=cartEntity.Id,
-                UserId = cartEntity.UserId,
-                CreatedAt = cartEntity.CreatedAt
+                Id = newCart.Id,
+                UserId = newCart.UserId,
+                CreatedAt = newCart.CreatedAt
             });
         }
 
@@ -105,7 +104,7 @@ namespace Application.Services
                Cart newCart= new Cart
                {
                    UserId = userId,
-                   CreatedAt = DateTime.UtcNow
+                   CreatedAt = DateTime.UtcNow.AddHours(5)
                };
                 await  _cartRepository.AddAsync(newCart);
                 await _cartRepository.SaveChangesAsync();
@@ -173,7 +172,7 @@ namespace Application.Services
                 .ThenInclude(d=>d.Product)
                 .FirstOrDefaultAsync(s => s.UserId == userId);
             if (cart == null)
-                 return new($"Customer {userId} uchun cart topilmadi",HttpStatusCode.NotFound);
+                 return new($"User {userId} uchun cart topilmadi",HttpStatusCode.NotFound);
 
             return new(new CartDto  
             {

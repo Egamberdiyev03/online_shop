@@ -36,7 +36,7 @@ namespace Application.Services
                 return new($"Product mavjud emas", HttpStatusCode.BadRequest);
 
             var comment = _mapper.Map<Comment>(dto);
-            comment.CreatedAt = DateTime.UtcNow;
+            comment.CreatedAt = DateTime.UtcNow.AddHours(5);
 
                 await  _commentRepository.AddAsync(comment);
                 await  _commentRepository.SaveChangesAsync();
@@ -86,7 +86,7 @@ namespace Application.Services
 
             comment.Content = dto.Content;
             comment.StarRating = dto.StarRating;
-            comment.UpdatedAt = DateTime.UtcNow;
+            comment.UpdatedAt = DateTime.UtcNow.AddHours(5);
             await _commentRepository.SaveChangesAsync();
 
             return new(_mapper.Map<CommentDto>(comment));
