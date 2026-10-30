@@ -1,5 +1,6 @@
-﻿using Application.DTOs.Auth;
+using Application.DTOs.Auth;
 using Application.Interfaces;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System;
@@ -17,14 +18,14 @@ namespace Application.Services.Bot
     {
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<BotUpdateHandler> _logger;
+        private readonly string _websiteUrl;
 
-        // Saytingiz manzili (Ishlab chiqishda localhost:4200, ertaga serverda o'z domeni)
-        private const string WebsiteUrl = "http://localhost:4200";
-
-        public BotUpdateHandler(IServiceProvider serviceProvider, ILogger<BotUpdateHandler> logger)
+        public BotUpdateHandler(IServiceProvider serviceProvider, ILogger<BotUpdateHandler> logger, IConfiguration configuration)
         {
             _serviceProvider = serviceProvider;
             _logger = logger;
+            // appsettings.json dan "WebsiteUrl" olinadi, topilmasa "https://xalqbozor.uz" ishlatiladi
+            _websiteUrl = configuration["TelegramBot:WebsiteUrl"]?.TrimEnd('/') ?? "https://xalqbozor.uz";
         }
 
         public async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
@@ -52,7 +53,7 @@ namespace Application.Services.Bot
                     return;
                 }
 
-                // 3. Pastdagi menyu tugmalari:
+                // 3. Pastdagi doimiy menyu tugmalari:
                 if (text.Contains("Mahsulotlar", StringComparison.OrdinalIgnoreCase) || text.Contains("katalog", StringComparison.OrdinalIgnoreCase))
                 {
                     await HandleCatalogAsync(botClient, chatId, cancellationToken);
@@ -77,7 +78,7 @@ namespace Application.Services.Bot
                     return;
                 }
 
-                // Noma'lum buyruq kelganda
+                // Noma'lum buyruq kelsa
                 await botClient.SendMessage(
                     chatId: chatId,
                     text: "Iltimos, pastdagi menyu tugmalaridan birini tanlang:",
@@ -89,7 +90,7 @@ namespace Application.Services.Bot
                 _logger.LogError(ex, "Botda xatolik yuz berdi. ChatId: {ChatId}", chatId);
                 await botClient.SendMessage(
                     chatId: chatId,
-                    text: $"Kechirasiz, xatolik yuz berdi: {ex.Message}",
+                    text: "Kechirasiz, vaqtinchalik xatolik yuz berdi. Qaytadan urinib ko'ring.",
                     replyMarkup: GetMainMenuKeyboard(),
                     cancellationToken: cancellationToken);
             }
@@ -113,36 +114,35 @@ namespace Application.Services.Bot
 
             var authResult = await authService.TelegramAuthAsync(checkDto);
 
-            // Agar oldin ro'yxatdan o'tgan bo'lsa (Login holati):
+            // Agar oldin ro'yxatdan o'tgan bo'lsa -> To'g'ridan-to'g'ri saytga kirish tugmasini beramiz
             if ((int)authResult.StatusCode is >= 200 and < 300 && !string.IsNullOrEmpty(authResult.result?.Token))
             {
                 var token = authResult.result.Token;
-                var siteLoginUrl = $"{WebsiteUrl}/login?token={token}";
-                var inlineKeyboard = CreateSafeInlineKeyboard("🌐 Saytga kirish (Profil)", siteLoginUrl);
+                var siteLoginUrl = $"{_websiteUrl}/login?token={token}";
 
-                var welcomeText =
-                    $"Assalomu alaykum, <b>{authResult.result.Name}</b>! Xush kelibsiz! 😊\n\n" +
-                    $"🌐 <b>Saytga profilingiz bilan kirish uchun havola:</b>\n" +
-                    $"👉 <a href=\"{siteLoginUrl}\"><b>OnlineShop saytiga kirish (Avtologin)</b></a>\n\n" +
-                    $"<i>(Yuqoridagi ko'k havola ustiga bosing, profilingizga parolsiz kirasiz)</i>";
+                var inlineKeyboard = new InlineKeyboardMarkup(new[]
+                {
+                    new[] { InlineKeyboardButton.WithUrl("🌐 XalqBozor saytiga kirish (Profil)", siteLoginUrl) }
+                });
 
                 await botClient.SendMessage(
                     chatId: chatId,
-                    text: welcomeText,
+                    text: $"Assalomu alaykum, <b>{authResult.result.Name}</b>! Xush kelibsiz! 😊\n\n" +
+                          $"Quyidagi tugmani bosing va <b>XalqBozor</b> do'koniga profilingiz bilan parolsiz kiring:",
                     parseMode: ParseMode.Html,
                     replyMarkup: inlineKeyboard,
                     cancellationToken: cancellationToken);
 
-                // Pastdagi menyuni chiqarib qo'yamiz
+                // Pastdagi doimiy menyuni ham ko'rsatamiz
                 await botClient.SendMessage(
                     chatId: chatId,
-                    text: "Boshqaruv menyusi:",
+                    text: "Do'kon menyusi:",
                     replyMarkup: GetMainMenuKeyboard(),
                     cancellationToken: cancellationToken);
             }
             else
             {
-                // Yangi bo'lsa -> Raqamni so'raymiz
+                // Yangi foydalanuvchi bo'lsa -> Telefon raqamini so'raymiz
                 var contactButton = new ReplyKeyboardMarkup(new[]
                 {
                     new KeyboardButton("📱 Telefon raqamni ulashish") { RequestContact = true }
@@ -154,14 +154,16 @@ namespace Application.Services.Bot
 
                 await botClient.SendMessage(
                     chatId: chatId,
-                    text: $"Assalomu alaykum, <b>{message.Chat.FirstName}</b>!\n\nOnlineShop do'koniga xush kelibsiz. Tizimdan to'liq foydalanish uchun pastdagi tugma orqali telefon raqamingizni yuboring:",
+                    text: $"Assalomu alaykum, <b>{message.Chat.FirstName}</b>!\n\n" +
+                          $"<b>XalqBozor</b> internet do'koniga xush kelibsiz! 😊\n\n" +
+                          $"Tizimdan to'liq foydalanish va profilingizni faollashtirish uchun pastdagi <b>«📱 Telefon raqamni ulashish»</b> tugmasini bosing:",
                     parseMode: ParseMode.Html,
                     replyMarkup: contactButton,
                     cancellationToken: cancellationToken);
             }
         }
 
-        // Telefon raqam kelganda (Ro'yxatdan o'tish)
+        // Kontakt (Telefon raqam) kelganda
         private async Task HandleContactAsync(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken)
         {
             var chatId = message.Chat.Id;
@@ -183,23 +185,23 @@ namespace Application.Services.Bot
             if ((int)response.StatusCode is >= 200 and < 300 && response.result != null)
             {
                 var token = response.result.Token;
-                var siteLoginUrl = $"{WebsiteUrl}/login?token={token}";
-                var inlineKeyboard = CreateSafeInlineKeyboard("🚀 Saytga profilingiz bilan kirish", siteLoginUrl);
+                var siteLoginUrl = $"{_websiteUrl}/login?token={token}";
 
-                var successText =
-                    $"Tabriklaymiz, <b>{response.result.Name}</b>! 🎉\n\n" +
-                    $"Siz muvaffaqiyatli ro'yxatdan o'tdingiz!\n\n" +
-                    $"🌐 <b>Saytga profilingiz bilan kirish uchun havola:</b>\n" +
-                    $"👉 <a href=\"{siteLoginUrl}\"><b>OnlineShop saytiga kirish (Avtologin)</b></a>\n\n" +
-                    $"<i>(Havola ustiga bosing, profilingiz avtomatik ochiladi)</i>";
+                var inlineKeyboard = new InlineKeyboardMarkup(new[]
+                {
+                    new[] { InlineKeyboardButton.WithUrl("🚀 XalqBozor saytiga kirish", siteLoginUrl) }
+                });
 
                 await botClient.SendMessage(
                     chatId: chatId,
-                    text: successText,
+                    text: $"Tabriklaymiz, <b>{response.result.Name}</b>! 🎉\n\n" +
+                          $"Siz muvaffaqiyatli ro'yxatdan o'tdingiz!\n\n" +
+                          $"Saytga parolsiz, to'g'ridan-to‘g‘ri profilingiz bilan kirish uchun quyidagi tugmani bosing:",
                     parseMode: ParseMode.Html,
                     replyMarkup: inlineKeyboard,
                     cancellationToken: cancellationToken);
 
+                // Pastdagi doimiy menyuni ham beramiz
                 await botClient.SendMessage(
                     chatId: chatId,
                     text: "Quyidagi bo'limlardan foydalanishingiz mumkin:",
@@ -219,17 +221,15 @@ namespace Application.Services.Bot
         // 🛍 Mahsulotlar katalogi
         private async Task HandleCatalogAsync(ITelegramBotClient botClient, long chatId, CancellationToken cancellationToken)
         {
-            var url = $"{WebsiteUrl}/products";
-            var inlineKeyboard = CreateSafeInlineKeyboard("🛍 Katalogni saytda ochish", url);
-
-            var text =
-                "📦 <b>Bizning mahsulotlar katalogimiz:</b>\n\n" +
-                "Eng so'nggi va sifatli tovarlarimizni saytimizda saralash va filtrlar bilan ko'rishingiz mumkin:\n\n" +
-                $"👉 <a href=\"{url}\"><b>Mahsulotlar katalogini ochish</b></a>";
+            var inlineKeyboard = new InlineKeyboardMarkup(new[]
+            {
+                new[] { InlineKeyboardButton.WithUrl("🛍 Katalogni ochish", $"{_websiteUrl}/products") }
+            });
 
             await botClient.SendMessage(
                 chatId: chatId,
-                text: text,
+                text: "📦 <b>XalqBozor mahsulotlar katalogi:</b>\n\n" +
+                      "Eng so'nggi va sifatli tovarlarimizni saytimizda qulay saralash va filtrlar orqali ko'rishingiz mumkin:",
                 parseMode: ParseMode.Html,
                 replyMarkup: inlineKeyboard,
                 cancellationToken: cancellationToken);
@@ -238,17 +238,15 @@ namespace Application.Services.Bot
         // 🛒 Savatcha
         private async Task HandleCartAsync(ITelegramBotClient botClient, long chatId, CancellationToken cancellationToken)
         {
-            var url = $"{WebsiteUrl}/cart";
-            var inlineKeyboard = CreateSafeInlineKeyboard("🛒 Savatchani ochish", url);
-
-            var text =
-                "🛒 <b>Sizning savatchangiz:</b>\n\n" +
-                "Savatchangizdagi mahsulotlarni ko'rish va buyurtma berish uchun:\n\n" +
-                $"👉 <a href=\"{url}\"><b>Savatchani saytda ochish</b></a>";
+            var inlineKeyboard = new InlineKeyboardMarkup(new[]
+            {
+                new[] { InlineKeyboardButton.WithUrl("🛒 Savatchani ochish", $"{_websiteUrl}/cart") }
+            });
 
             await botClient.SendMessage(
                 chatId: chatId,
-                text: text,
+                text: "🛒 <b>Sizning savatchangiz:</b>\n\n" +
+                      "Savatchangizdagi mahsulotlarni ko'rish va xaridni rasmiylashtirish uchun saytga o'ting:",
                 parseMode: ParseMode.Html,
                 replyMarkup: inlineKeyboard,
                 cancellationToken: cancellationToken);
@@ -257,13 +255,34 @@ namespace Application.Services.Bot
         // 📋 Buyurtmalarim
         private async Task HandleOrdersAsync(ITelegramBotClient botClient, long chatId, CancellationToken cancellationToken)
         {
-            var url = $"{WebsiteUrl}/orders";
-            var inlineKeyboard = CreateSafeInlineKeyboard("📋 Buyurtmalar holatini ko'rish", url);
+            var inlineKeyboard = new InlineKeyboardMarkup(new[]
+            {
+                new[] { InlineKeyboardButton.WithUrl("📋 Buyurtmalarim holati", $"{_websiteUrl}/orders") }
+            });
+
+            await botClient.SendMessage(
+                chatId: chatId,
+                text: "📋 <b>Mening buyurtmalarim:</b>\n\n" +
+                      "Barcha bergan buyurtmalaringiz, ularning holati (Kutilmoqda, Yetkazildi) va to'lovlarini kuzatish:",
+                parseMode: ParseMode.Html,
+                replyMarkup: inlineKeyboard,
+                cancellationToken: cancellationToken);
+        }
+
+        // ℹ️ Ma'lumot / Bog'lanish
+        private async Task HandleInfoAsync(ITelegramBotClient botClient, long chatId, CancellationToken cancellationToken)
+        {
+            var inlineKeyboard = new InlineKeyboardMarkup(new[]
+            {
+                new[] { InlineKeyboardButton.WithUrl("🌐 XalqBozor.uz ga o'tish", _websiteUrl) }
+            });
 
             var text =
-                "📋 <b>Mening buyurtmalarim:</b>\n\n" +
-                "Barcha bergan buyurtmalaringiz, ularning holati (Kutilmoqda, Yetkazildi) va cheklarni kuzatish uchun:\n\n" +
-                $"👉 <a href=\"{url}\"><b>Buyurtmalarim sahifasini ochish</b></a>";
+                "🏢 <b>XalqBozor - Zamonaviy E-Commerce do'koni</b>\n\n" +
+                "📍 <b>Manzil:</b> Toshkent shahar\n" +
+                "📞 <b>Aloqa:</b> +998 90 123 45 67\n" +
+                $"🌐 <b>Veb-sayt:</b> {_websiteUrl}\n\n" +
+                "Savollar yoki takliflar bo'lsa, biz bilan bog'laning!";
 
             await botClient.SendMessage(
                 chatId: chatId,
@@ -273,40 +292,7 @@ namespace Application.Services.Bot
                 cancellationToken: cancellationToken);
         }
 
-        // ℹ️ Ma'lumot / Bog'lanish
-        private async Task HandleInfoAsync(ITelegramBotClient botClient, long chatId, CancellationToken cancellationToken)
-        {
-            var text =
-                "🏢 <b>OnlineShop - Zamonaviy E-Commerce do'koni</b>\n\n" +
-                "📍 <b>Manzil:</b> Toshkent shahar\n" +
-                "📞 <b>Aloqa:</b> +998 90 123 45 67\n" +
-                $"🌐 <b>Veb-sayt:</b> <a href=\"{WebsiteUrl}\">OnlineShop Web</a>\n\n" +
-                "Savollar yoki takliflar bo'lsa, biz bilan bog'laning!";
-
-            await botClient.SendMessage(
-                chatId: chatId,
-                text: text,
-                parseMode: ParseMode.Html,
-                replyMarkup: GetMainMenuKeyboard(),
-                cancellationToken: cancellationToken);
-        }
-
-        // Xavfsiz Inline tugma yasash (Localhost bo'lsa xato bermaslik uchun null qaytaradi, real domenda tugma chiqaradi)
-        private static InlineKeyboardMarkup? CreateSafeInlineKeyboard(string buttonText, string url)
-        {
-            if (url.Contains("localhost", StringComparison.OrdinalIgnoreCase) ||
-                url.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase))
-            {
-                return null;
-            }
-
-            return new InlineKeyboardMarkup(new[]
-            {
-                new[] { InlineKeyboardButton.WithUrl(buttonText, url) }
-            });
-        }
-
-        // Doimiy pastki menyu tugmalari
+        // Pastki doimiy menyu tugmalari
         private ReplyKeyboardMarkup GetMainMenuKeyboard()
         {
             return new ReplyKeyboardMarkup(new[]
