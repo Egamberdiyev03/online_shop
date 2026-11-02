@@ -1,6 +1,7 @@
 using Application.DTOs.Auth;
 using Application.Extentions;
 using Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace OnlineShop.Controllers
@@ -35,6 +36,14 @@ namespace OnlineShop.Controllers
 
         [HttpPost("TelegramAuth")]
         public async Task<ResponseModel<AuthResponseDto>> TelegramAuth(TelegramAuthDto dto)
-    => await _authService.TelegramAuthAsync(dto);
+            => await _authService.TelegramAuthAsync(dto);
+
+        [HttpPost("telegram-login")]
+        [AllowAnonymous]
+        public async Task<IActionResult> TelegramLogin([FromBody] TelegramLoginCodeDto dto)
+        {
+            var result = await _authService.TelegramLoginByCodeAsync(dto.Code);
+            return StatusCode((int)result.StatusCode, result);
+        }
     }
 }

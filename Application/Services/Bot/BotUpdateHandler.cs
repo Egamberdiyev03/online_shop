@@ -108,17 +108,17 @@ namespace Application.Services.Bot
             {
                 TelegramChatId = chatId,
                 PhoneNumber = string.Empty,
-                Name = message.Chat.FirstName ?? "Mijoz",
+                Name = message.From?.FirstName ?? message.Chat.FirstName ?? "Mijoz",
                 TelegramUsername = message.Chat.Username
             };
 
             var authResult = await authService.TelegramAuthAsync(checkDto);
 
             // Agar oldin ro'yxatdan o'tgan bo'lsa -> To'g'ridan-to'g'ri saytga kirish tugmasini beramiz
-            if ((int)authResult.StatusCode is >= 200 and < 300 && !string.IsNullOrEmpty(authResult.result?.Token))
+            if ((int)authResult.StatusCode is >= 200 and < 300 && authResult.result != null)
             {
-                var token = authResult.result.Token;
-                var siteLoginUrl = $"{_websiteUrl}/login?token={token}";
+                var code = await authService.CreateTelegramLoginCodeAsync(authResult.result.UserId);
+                var siteLoginUrl = $"{_websiteUrl}/login?code={code}";
 
                 var inlineKeyboard = new InlineKeyboardMarkup(new[]
                 {
@@ -166,8 +166,19 @@ namespace Application.Services.Bot
         // Kontakt (Telefon raqam) kelganda
         private async Task HandleContactAsync(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken)
         {
-            var chatId = message.Chat.Id;
             var contact = message.Contact!;
+            var chatId = message.Chat.Id;
+
+            if (contact.UserId != message.From?.Id)
+            {
+                await botClient.SendMessage(
+                    chatId: chatId,
+                    text: "Iltimos, faqat o'zingizning raqamingizni yuboring (pastdagi tugma orqali).",
+                    cancellationToken: cancellationToken);
+                return;
+            }
+            
+            //var contact = message.Contact!;
 
             using var scope = _serviceProvider.CreateScope();
             var authService = scope.ServiceProvider.GetRequiredService<IAuthService>();
@@ -184,8 +195,8 @@ namespace Application.Services.Bot
 
             if ((int)response.StatusCode is >= 200 and < 300 && response.result != null)
             {
-                var token = response.result.Token;
-                var siteLoginUrl = $"{_websiteUrl}/login?token={token}";
+                var code = await authService.CreateTelegramLoginCodeAsync(response.result.UserId);
+                var siteLoginUrl = $"{_websiteUrl}/login?code={code}";
 
                 var inlineKeyboard = new InlineKeyboardMarkup(new[]
                 {

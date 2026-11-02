@@ -6,6 +6,8 @@ using Domain.Entities;
 using Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using Telegram.Bot.Types;
 using User = Domain.Entities.User;
 
@@ -16,12 +18,14 @@ namespace Application.Services
         private readonly IRepository<User> _userRepo;
         private readonly ITokenService _tokenService;
         private readonly IEmailService _emailService;
+        private readonly IRepository<TelegramLoginCode> _codeRepo;
 
-        public AuthService(IRepository<User> userRepo, ITokenService tokenService, IEmailService emailService)
+        public AuthService(IRepository<User> userRepo, ITokenService tokenService, IEmailService emailService, IRepository<TelegramLoginCode> codeRepo)
         {
             _userRepo = userRepo;
             _tokenService = tokenService;
             _emailService = emailService;
+            _codeRepo = codeRepo;
         }
 
         public async Task<ResponseModel<string>> RegisterAsync(RegisterDto dto)
@@ -192,8 +196,55 @@ namespace Application.Services
                 await _userRepo.SaveChangesAsync();
         
         // 4. JWT token generatsiya qilamiz va qaytaramiz
-             var authResponse = _tokenService.GenerateToken(user);
-             return new ("Muvaffaqiyatli", HttpStatusCode.OK, authResponse);
+             return new ("Muvaffaqiyatli", HttpStatusCode.OK, new AuthResponseDto
+             {
+                 UserId = user.Id,
+                 Name = user.Name,
+             });
+        }
+
+        public async Task<string> CreateTelegramLoginCodeAsync(int userId)
+        {
+
+            var code = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+            var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(code)));
+
+            await _codeRepo.AddAsync(new TelegramLoginCode
+            {
+                UserId = userId,
+                CodeHash = hash,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(2)
+            });
+            await _codeRepo.SaveChangesAsync();
+            return code;
+        }
+
+        public async Task<ResponseModel<AuthResponseDto>> TelegramLoginByCodeAsync(string code)
+        {
+            if (string.IsNullOrWhiteSpace(code) || code.Length > 128)
+                return new("Havola yaroqsiz", HttpStatusCode.Unauthorized);
+
+            var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(code)));
+
+            var entry = await _codeRepo.GetAsQueryable()
+                .FirstOrDefaultAsync(c => c.CodeHash == hash && !c.Used && c.ExpiresAt > DateTime.UtcNow);
+
+            if (entry == null)
+                return new("Havola yaroqsiz yoki muddati tugagan", HttpStatusCode.Unauthorized);
+
+            // Atomik: faqat bitta so'rov o'tadi
+            var updated = await _codeRepo.GetAsQueryable()
+                .Where(c => c.Id == entry.Id && !c.Used)
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.Used, true));
+
+            if (updated == 0)
+                return new("Havola yaroqsiz yoki muddati tugagan", HttpStatusCode.Unauthorized);
+
+            var user = await _userRepo.GetAsQueryable().FirstOrDefaultAsync(u => u.Id == entry.UserId);
+            if (user == null || user.Role != Role.Customer)
+                return new("Bu akkaunt Telegram orqali kira olmaydi", HttpStatusCode.Forbidden);
+
+            return new("Muvaffaqiyatli", HttpStatusCode.OK, _tokenService.GenerateToken(user));
         }
     }
 }

@@ -24,5 +24,6 @@ namespace DataAccess.Database
         public DbSet<CartItem> CartItems { get; set; }
         public DbSet<Payment> Payments { get; set; }
         public DbSet<Notification> Notifications { get; set; }
+        public DbSet<TelegramLoginCode> TelegramLoginCodes { get; set; }
     }
 }

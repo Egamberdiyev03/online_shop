@@ -16,6 +16,9 @@ namespace Application.Interfaces
         Task<ResponseModel<string>> ForgotPasswordAsync(ForgotPasswordDto dto);
         Task<ResponseModel<string>> ResetPasswordAsync(ResetPasswordDto dto);
         Task<ResponseModel<AuthResponseDto>> TelegramAuthAsync(TelegramAuthDto dto);
+
+        Task<string> CreateTelegramLoginCodeAsync(int userId);
+        Task<ResponseModel<AuthResponseDto>> TelegramLoginByCodeAsync(string code);
     }
 }
  
