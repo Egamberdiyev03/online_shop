@@ -24,8 +24,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddCors(o => o.AddPolicy("Front", p => p
     .WithOrigins(
-    "http://onlineshopuz.runasp.net", 
-    "https://onlineshopuz.runasp.net", 
+    "https://xalqbozor.uz",
     "http://localhost:4200")
     .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 

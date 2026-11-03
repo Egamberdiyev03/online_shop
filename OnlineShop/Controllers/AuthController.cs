@@ -45,5 +45,13 @@ namespace OnlineShop.Controllers
             var result = await _authService.TelegramLoginByCodeAsync(dto.Code);
             return StatusCode((int)result.StatusCode, result);
         }
+
+        [HttpPost("telegram-miniapp")]
+        [AllowAnonymous]
+        public async Task<IActionResult> TelegramMiniApp([FromBody] TelegramMiniAppDto dto)
+        {
+            var result = await _authService.TelegramMiniAppLoginAsync(dto.InitData);
+            return StatusCode((int)result.StatusCode, result);
+        }
     }
 }

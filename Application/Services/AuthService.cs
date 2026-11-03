@@ -1,10 +1,12 @@
 using Application.DTOs.Auth;
 using Application.Extentions;
 using Application.Interfaces;
+using Application.Services.Bot;
 using DataAccess.Repositories;
 using Domain.Entities;
 using Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -15,17 +17,24 @@ namespace Application.Services
 {
     public class AuthService : IAuthService
     {
+        private readonly IConfiguration _config;
         private readonly IRepository<User> _userRepo;
         private readonly ITokenService _tokenService;
         private readonly IEmailService _emailService;
         private readonly IRepository<TelegramLoginCode> _codeRepo;
 
-        public AuthService(IRepository<User> userRepo, ITokenService tokenService, IEmailService emailService, IRepository<TelegramLoginCode> codeRepo)
+        public AuthService(IRepository<User> userRepo,
+            ITokenService tokenService,
+            IEmailService emailService,
+            IRepository<TelegramLoginCode> codeRepo,
+            IConfiguration config)
+        
         {
             _userRepo = userRepo;
             _tokenService = tokenService;
             _emailService = emailService;
             _codeRepo = codeRepo;
+            _config = config;
         }
 
         public async Task<ResponseModel<string>> RegisterAsync(RegisterDto dto)
@@ -242,6 +251,27 @@ namespace Application.Services
 
             var user = await _userRepo.GetAsQueryable().FirstOrDefaultAsync(u => u.Id == entry.UserId);
             if (user == null || user.Role != Role.Customer)
+                return new("Bu akkaunt Telegram orqali kira olmaydi", HttpStatusCode.Forbidden);
+
+            return new("Muvaffaqiyatli", HttpStatusCode.OK, _tokenService.GenerateToken(user));
+        }
+
+        public async Task<ResponseModel<AuthResponseDto>> TelegramMiniAppLoginAsync(string initData)
+        {
+            var botToken = _config["TelegramBot:BotToken"];   // <-- o'zingizdagi kalit nomiga moslang
+            if (string.IsNullOrWhiteSpace(botToken))
+                return new("Server sozlamasi xato", HttpStatusCode.InternalServerError);
+
+            if (!TelegramInitData.TryValidate(initData, botToken, out var telegramId))
+                return new("Telegram ma'lumoti yaroqsiz yoki muddati tugagan", HttpStatusCode.Unauthorized);
+
+            var user = await _userRepo.GetAsQueryable()
+                .FirstOrDefaultAsync(u => u.TelegramChatId == telegramId);
+
+            if (user == null)
+                return new("Avval Telegram botda ro'yxatdan o'ting", HttpStatusCode.NotFound);
+
+            if (user.Role != Role.Customer)
                 return new("Bu akkaunt Telegram orqali kira olmaydi", HttpStatusCode.Forbidden);
 
             return new("Muvaffaqiyatli", HttpStatusCode.OK, _tokenService.GenerateToken(user));

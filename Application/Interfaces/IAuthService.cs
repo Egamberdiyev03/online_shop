@@ -19,6 +19,7 @@ namespace Application.Interfaces
 
         Task<string> CreateTelegramLoginCodeAsync(int userId);
         Task<ResponseModel<AuthResponseDto>> TelegramLoginByCodeAsync(string code);
+        Task<ResponseModel<AuthResponseDto>> TelegramMiniAppLoginAsync(string initData);
     }
 }
  

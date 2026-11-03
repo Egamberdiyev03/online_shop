@@ -161,8 +161,11 @@ namespace Application.Services.Bot
             var code = await authService.CreateTelegramLoginCodeAsync(userId);
             var loginUrl = $"{_websiteUrl}/login?code={code}";
 
-            var inlineKeyboard = new InlineKeyboardMarkup(
-                InlineKeyboardButton.WithUrl("🚀 Saytga kirish", loginUrl));
+            var inlineKeyboard = new InlineKeyboardMarkup(new[]
+            {
+                new[] { InlineKeyboardButton.WithWebApp("🛍 Do'konni ochish", new WebAppInfo(_websiteUrl)) },
+                new[] { InlineKeyboardButton.WithUrl("🌐 Brauzerda kirish", loginUrl) }
+            });
 
             var greeting = isNewUser
                 ? $"Tabriklaymiz, <b>{Encode(name)}</b>! 🎉 Siz muvaffaqiyatli ro'yxatdan o'tdingiz."
@@ -171,8 +174,8 @@ namespace Application.Services.Bot
             await botClient.SendMessage(
                 chatId: chatId,
                 text: $"{greeting}\n\n" +
-                      "Quyidagi tugmani bosing va <b>XalqBozor</b> saytiga parolsiz kiring.\n" +
-                      "⏱ Havola <b>2 daqiqa</b> amal qiladi va bir marta ishlaydi.",
+                      "🛍 <b>«Do'konni ochish»</b> tugmasi do'konni Telegramning o'zida ochadi.\n" +
+                      "🌐 Brauzerda ochish uchun ikkinchi tugmani bosing (havola <b>2 daqiqa</b> amal qiladi va bir marta ishlaydi).",
                 parseMode: ParseMode.Html,
                 replyMarkup: inlineKeyboard,
                 cancellationToken: cancellationToken);
