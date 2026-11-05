@@ -98,8 +98,10 @@ namespace Application.Services
                 .Where(c => c.ProductId == productId)
                 .Select(c => new CommentDto
                 {
+                    Id = c.Id,
                     ProductId = c.ProductId,
                     UserId = c.UserId,
+                    UserName = c.User.Name,
                     Content = c.Content,
                     CreatedAt = c.CreatedAt,
                     UpdatedAt = c.UpdatedAt,
@@ -109,17 +111,19 @@ namespace Application.Services
             if (!comments.Any())
                 return new($"Bu productga tegishli commmentlar topilmadi", HttpStatusCode.NotFound);
 
-            return new(comments); 
+            return new(comments);
         }
 
         public async Task<ResponseModel<List<CommentDto>>> GetCommentsByUserId(int UserId)
         {
             var comments = await _commentRepository.GetAsQueryable()
-               .Where(c => c.UserId==UserId)
+               .Where(c => c.UserId == UserId)
                .Select(c => new CommentDto
                {
+                   Id = c.Id,
                    ProductId = c.ProductId,
                    UserId = c.UserId,
+                   UserName = c.User.Name,
                    Content = c.Content,
                    CreatedAt = c.CreatedAt,
                    UpdatedAt = c.UpdatedAt,
@@ -127,7 +131,7 @@ namespace Application.Services
                }).ToListAsync();
 
             if (!comments.Any())
-                return new($"Bu productga tegishli commmentlar topilmadi", HttpStatusCode.NotFound);
+                return new($"Bu userga tegishli commentlar topilmadi", HttpStatusCode.NotFound);
 
             return new(comments);
         }

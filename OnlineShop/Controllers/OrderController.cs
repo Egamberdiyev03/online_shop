@@ -32,11 +32,17 @@ namespace OnlineShop.Controllers
         {
             return User.FindFirst(ClaimTypes.Role)?.Value;
         }
-
+        [Authorize]
         [HttpPost("Create")]
-        public async Task<ResponseModel<bool>> CreateOrder (int userId)
-            => await _orderService.CreateOrder(userId);
-        
+        public async Task<ResponseModel<bool>> CreateOrder ()
+        {
+            var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(value, out var userId))
+                return new("Foydalanuvchi aniqlanmadi", HttpStatusCode.Unauthorized);
+
+            return await _orderService.CreateOrder(userId);
+        }
+            
         [HttpGet("GetById")]
         public async Task<ResponseModel<OrderDto>> GetOrderById (int id)
             => await _orderService.GetOrderById(id);
@@ -62,9 +68,16 @@ namespace OnlineShop.Controllers
             return new(await _orderService.GetAllOrder());
         }
 
+        [Authorize]
         [HttpGet("GetOrderByUserId")]
-        public async Task<ResponseModel<List<OrderDto>>> GetOrderByUserId(int customerId)
-           =>  await _orderService.GetByOrderUserId(customerId);
+        public  async Task<ResponseModel<List<OrderDto>>> GetOrderByUserId()
+        {
+            var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(value, out var userId))
+                return new("Foydalanuvchi aniqlanmadi", HttpStatusCode.Unauthorized);
+
+            return  await  _orderService.GetByOrderUserId(userId);
+        }
 
         // BranchManager ham o'z filiali buyurtmalarini yangilay oladi
         [Authorize(Roles = "SuperAdmin,CompanyAdmin,BranchManager")]
@@ -94,6 +107,7 @@ namespace OnlineShop.Controllers
             return await _orderService.UpdateOrderStatus(orderId, status);
         }
 
+        [Authorize]
         [HttpPut("Cancel")]
         public async Task<ResponseModel<bool>> CancelOrder(int orderId)
             => await _orderService.CancelOrder(orderId);
