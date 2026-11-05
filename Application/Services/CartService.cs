@@ -98,7 +98,10 @@ namespace Application.Services
 
         public async Task<ResponseModel<bool>> AddItemToCartAsync(int userId, int productId, int quantity)
         {
-            var cart = await _cartRepository.GetAsQueryable().FirstOrDefaultAsync(a => a.UserId == userId);
+            var cart = await _cartRepository.GetAsQueryable()
+                .Include(c => c.CartItems)
+                .ThenInclude(c => c.Product)
+                .FirstOrDefaultAsync(a => a.UserId == userId);
             if(cart == null)
             {
                Cart newCart= new Cart
@@ -115,6 +118,9 @@ namespace Application.Services
 
             if (product == null)
                  return new($"Product {productId} topilmadi",HttpStatusCode.NotFound);
+
+            if(cart.CartItems.Any(c=>c.Product.CompanyBranchId != product.CompanyBranchId))
+                return new($"Savatingizda boshqa filial mahsulotlari bor. Avval savatni tozalang.", HttpStatusCode.BadRequest);
 
             var currentCartItem = await _cartItemRepository.GetAsQueryable()
                 .FirstOrDefaultAsync(s => s.CartId == cart.Id && s.ProductId == productId);

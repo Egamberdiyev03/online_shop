@@ -34,8 +34,8 @@ namespace OnlineShop.Controllers
         }
 
         [HttpPost("Create")]
-        public async Task<ResponseModel<bool>> CreateOrder (int userId, int branchId)
-            => await _orderService.CreateOrder(userId,branchId);
+        public async Task<ResponseModel<bool>> CreateOrder (int userId)
+            => await _orderService.CreateOrder(userId);
         
         [HttpGet("GetById")]
         public async Task<ResponseModel<OrderDto>> GetOrderById (int id)
