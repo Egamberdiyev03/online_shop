@@ -10,6 +10,7 @@ using Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
 using System.Security.AccessControl;
+//using Telegram.Bot.Types;
 namespace Application.Services
 {
     public  class OrderService : IOrderService
@@ -20,7 +21,7 @@ namespace Application.Services
         private readonly IRepository<CompanyBranch> _branchRepository;
         private readonly INotificationService _notificationservice;
         private readonly INotificationRepository _notificationRepository;
-        private readonly IRepository<User> _userRepo;
+        private readonly IRepository<User> _userRepo; 
         private readonly IMapper _mapper;
         public OrderService
             (IRepository<Order> orderRepository,
@@ -143,19 +144,38 @@ namespace Application.Services
 
             return new(_mapper.Map<OrderDto>(order));
         }
-        public async Task<ResponseModel<List<OrderDto>>> GetByOrderUserId (int UserId)
+        public async Task<ResponseModel<PagedResult<OrderDto>>> GetByOrderUserId (int UserId,int pageSize,int pageNumber)
         {
-            var orders =  await _orderRepository.GetAsQueryable()
+            if (pageNumber < 1) pageNumber = 1;
+            if (pageSize < 1) pageSize = 10;
+            if (pageSize > 50) pageSize = 50;
+
+            var query = _orderRepository.GetAsQueryable()
+                 .Where(c => c.UserId == UserId);
+
+            var totalCount = await query.CountAsync();
+
+            var orders =  await query
+                .AsNoTracking()
                 .Include(c => c.OrderItems)
                 .ThenInclude(d => d.Product)
-                .Where(c => c.UserId == UserId)
                 .OrderByDescending(t=>t.CreatedAt)
+                .ThenByDescending(t => t.Id)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
 
-            if (orders == null || !orders.Any())
-                return new($"Bu mijozga tegishli buyurtmalar topilmadi", HttpStatusCode.NotFound);
+            var items = _mapper.Map<List<OrderDto>>(orders);
 
-            return new(_mapper.Map<List<OrderDto>>(orders));
+            var paged = new PagedResult<OrderDto>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
+
+            return new("Muvaffaqiyatli", HttpStatusCode.OK, paged);
         }
         public async Task<ResponseModel<List<OrderDto>>> GetOrdersByBranchId(int branchId)
         {

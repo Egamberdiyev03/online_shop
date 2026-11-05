@@ -17,7 +17,7 @@ namespace Application.Interfaces
         Task<ResponseModel<OrderDto>> GetOrderById(int id);
 
 
-        Task<ResponseModel<List<OrderDto>>> GetByOrderUserId(int userId);
+        Task<ResponseModel<PagedResult<OrderDto>>> GetByOrderUserId(int userId,int pageSize,int pageNumber);
         Task<ResponseModel<List<OrderDto>>> GetOrdersByBranchId(int branchId);
         Task<ResponseModel<List<OrderDto>>> GetOrdersByStatus(OrderStatus status);
         Task<ResponseModel<List<OrderDto>>> GetOrdersByDateRange(DateTime from, DateTime to);

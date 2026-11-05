@@ -70,13 +70,13 @@ namespace OnlineShop.Controllers
 
         [Authorize]
         [HttpGet("GetOrderByUserId")]
-        public  async Task<ResponseModel<List<OrderDto>>> GetOrderByUserId()
+        public  async Task<ResponseModel<PagedResult<OrderDto>>> GetOrderByUserId(int pageSize, int pageNumber)
         {
             var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(value, out var userId))
                 return new("Foydalanuvchi aniqlanmadi", HttpStatusCode.Unauthorized);
 
-            return  await  _orderService.GetByOrderUserId(userId);
+            return  await  _orderService.GetByOrderUserId(userId, pageSize, pageNumber);
         }
 
         // BranchManager ham o'z filiali buyurtmalarini yangilay oladi

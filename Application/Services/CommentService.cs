@@ -76,7 +76,7 @@ namespace Application.Services
         public async Task<bool> DeleteComment (int id,int userId,bool isAdmin)
         {
             var exists = await _commentRepository.GetAsQueryable().AnyAsync(f => f.Id == id && (isAdmin || f.UserId == userId));
-            if (!exists == null)
+            if (!exists)
                 return false;
 
             return await _commentRepository.DeleteAsync(id); 
