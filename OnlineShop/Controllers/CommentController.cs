@@ -4,6 +4,7 @@ using Application.Interfaces;
 using Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace OnlineShop.Controllers
 {
@@ -33,10 +34,14 @@ namespace OnlineShop.Controllers
         public async Task<ResponseModel<CommentDto>> UpdateComment(UpdateCommentDto dto)
             => await _commentService.UpdateComment(dto);
 
-        [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
+        [Authorize]
         [HttpDelete("Delete")]
         public async Task<bool> DeleteComment(int id)
-            => await _commentService.DeleteComment(id);
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var isAdmin = User.IsInRole("SuperAdmin") || User.IsInRole("CompanyAdmin");
+            return  await _commentService.DeleteComment(id,userId, isAdmin);
+        }
         
         [HttpGet("GetByProductId")]
         public async Task<ResponseModel<List<CommentDto>>> GetCommentsByProductId(int productId)

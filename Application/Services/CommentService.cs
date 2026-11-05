@@ -4,6 +4,7 @@ using Application.Interfaces;
 using AutoMapper;
 using DataAccess.Repositories;
 using Domain.Entities;
+using Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualBasic;
 using System;
@@ -72,8 +73,12 @@ namespace Application.Services
         }
 
 
-        public async Task<bool> DeleteComment (int id)
+        public async Task<bool> DeleteComment (int id,int userId,bool isAdmin)
         {
+            var exists = await _commentRepository.GetAsQueryable().AnyAsync(f => f.Id == id && (isAdmin || f.UserId == userId));
+            if (!exists == null)
+                return false;
+
             return await _commentRepository.DeleteAsync(id); 
         }
 

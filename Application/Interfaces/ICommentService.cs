@@ -14,7 +14,7 @@ namespace Application.Interfaces
         Task<List<CommentDto>> GetAllComment();
         Task<ResponseModel<CommentDto>> GetCommentById(int id);
         Task<ResponseModel<CommentDto>> CreateComment(CreateCommentDto dto);
-        Task<bool> DeleteComment(int id);
+        Task<bool> DeleteComment(int id,int userId,bool IsAdmin);
         Task<ResponseModel<CommentDto>> UpdateComment(UpdateCommentDto dto);
 
 
