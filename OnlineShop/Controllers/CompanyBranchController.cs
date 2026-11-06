@@ -44,23 +44,11 @@ namespace OnlineShop.Controllers
         public async Task<List<CompanyBranchDto>> GetAllCompanyBranch ()
             => await _service.GetAllCompanyBranchesAsync();
 
-        // BranchManager o'z filialini ko'ra oladi
-        [Authorize(Roles = "SuperAdmin,CompanyAdmin,BranchManager")]
+        // Barcha autentifikatsiya qilingan foydalanuvchilar filial ma'lumotini ko'ra oladi
+        [Authorize]
         [HttpGet("GetById")]
         public async Task<ResponseModel<CompanyBranchDto>>GetCompanyBranch (int id)
         {
-            var role = GetCurrentUserRole();
-
-            // BranchManager faqat o'z filialini ko'ra oladi
-            if (role == "BranchManager")
-            {
-                var userBranchId = GetCurrentUserBranchId();
-                if (userBranchId != id)
-                {
-                    return new("Siz faqat o'z filialingiz ma'lumotlarini ko'ra olasiz.", System.Net.HttpStatusCode.Forbidden);
-                }
-            }
-
             return await _service.GetByIdCompanyBranch(id);
         }
 
