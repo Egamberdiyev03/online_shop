@@ -20,23 +20,43 @@ namespace Application.Services
     {
         private readonly IRepository<Comment> _commentRepository;
         private readonly IRepository<Product> _productRepository;
+        private readonly IRepository<Order> _orderRepository;
         private readonly IMapper _mapper;
 
-        public CommentService(IRepository<Comment> commentRepository,IRepository<Product> productRepository,IMapper mapper)
+        public CommentService(IRepository<Comment> commentRepository,IRepository<Product> productRepository,IRepository<Order> orderRepository,IMapper mapper)
         {
             _commentRepository = commentRepository;
             _productRepository = productRepository;
+            _orderRepository = orderRepository;
             _mapper = mapper;
         }
 
-        public async Task<ResponseModel<CommentDto>> CreateComment (CreateCommentDto dto)
+        public async Task<ResponseModel<CommentDto>> CreateComment (CreateCommentDto dto,int userId)
         {
+            if (dto.StarRating < 1 || dto.StarRating > 5)
+                return new("Baho 1 dan 5 gacha bo'lishi kerak", HttpStatusCode.BadRequest);
+
             var product = await  _productRepository.GetByIdAsync(dto.ProductId);
 
             if (product == null)
                 return new($"Product mavjud emas", HttpStatusCode.BadRequest);
 
+            var purchased = await _orderRepository.GetAsQueryable()
+                        .AnyAsync(o => o.UserId == userId
+                    && o.Status == OrderStatus.Delivered
+                    && o.OrderItems.Any(i => i.ProductId == dto.ProductId));
+
+            if (!purchased)
+                return new("Sharh qoldirish uchun mahsulotni sotib olgan bo'lishingiz kerak", HttpStatusCode.Forbidden);
+
+            var alreadyReviewed = await _commentRepository.GetAsQueryable()
+                   .AnyAsync(c => c.UserId == userId && c.ProductId == dto.ProductId);
+
+            if (alreadyReviewed)
+                return new("Siz bu mahsulotga allaqachon sharh yozgansiz", HttpStatusCode.Conflict);
+
             var comment = _mapper.Map<Comment>(dto);
+            comment.UserId = userId;
             comment.CreatedAt = DateTime.UtcNow.AddHours(5);
 
                 await  _commentRepository.AddAsync(comment);
@@ -97,10 +117,24 @@ namespace Application.Services
             return new(_mapper.Map<CommentDto>(comment));
         }
 
-        public async Task<ResponseModel<List<CommentDto>>> GetCommentsByProductId(int productId)
+        public async Task<ResponseModel<PagedResult<CommentDto>>> GetCommentsByProductId(int productId, int pageNumber, int pageSize)
         {
-            var comments = await _commentRepository.GetAsQueryable()
-                .Where(c => c.ProductId == productId)
+            if (pageNumber < 1) pageNumber = 1;
+            if (pageSize < 1) pageSize = 10;
+            if (pageSize > 50) pageSize = 50;
+
+            var query =  _commentRepository.GetAsQueryable()
+                .AsNoTracking()
+                .Where(c => c.ProductId == productId);
+
+
+            var totalCount = await query.CountAsync();
+
+            var comments = await query
+                .OrderByDescending(c => c.CreatedAt)
+                .ThenByDescending(c=>c.Id)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
                 .Select(c => new CommentDto
                 {
                     Id = c.Id,
@@ -113,10 +147,14 @@ namespace Application.Services
                     StarRating = c.StarRating
                 }).ToListAsync();
 
-            if (!comments.Any())
-                return new($"Bu productga tegishli commmentlar topilmadi", HttpStatusCode.NotFound);
-
-            return new(comments);
+            var paged = new PagedResult<CommentDto>
+            {
+                Items = comments,
+                TotalCount = totalCount,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
+            return new("Muvaffaqiyatli", HttpStatusCode.OK, paged);
         }
 
         public async Task<ResponseModel<List<CommentDto>>> GetCommentsByUserId(int UserId)

@@ -18,7 +18,10 @@ namespace OnlineShop.Controllers
 
         [HttpPost("Create")]
         public async Task<ResponseModel<CommentDto>> CreateComment (CreateCommentDto dto)
-            => await _commentService.CreateComment(dto);
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            return await _commentService.CreateComment(dto, userId);    
+        }
 
         [HttpGet("GetById")]
         public async Task<ResponseModel<CommentDto>> GetCommentById (int id)
@@ -44,9 +47,9 @@ namespace OnlineShop.Controllers
         }
         
         [HttpGet("GetByProductId")]
-        public async Task<ResponseModel<List<CommentDto>>> GetCommentsByProductId(int productId)
-            => await _commentService.GetCommentsByProductId(productId);
-        
+        public async Task<ResponseModel<PagedResult<CommentDto>>> GetCommentsByProductId(int productId, int pageNumber, int pageSize)
+            => await _commentService.GetCommentsByProductId(productId, pageNumber, pageSize);
+
         [HttpGet("GetByCustomerId")]
         public async Task<ResponseModel<List<CommentDto>>> GetCommentsByUserId(int customerId)
             => await _commentService.GetCommentsByUserId(customerId);

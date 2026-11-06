@@ -13,12 +13,12 @@ namespace Application.Interfaces
         //CRUD
         Task<List<CommentDto>> GetAllComment();
         Task<ResponseModel<CommentDto>> GetCommentById(int id);
-        Task<ResponseModel<CommentDto>> CreateComment(CreateCommentDto dto);
+        Task<ResponseModel<CommentDto>> CreateComment(CreateCommentDto dto,int userId);
         Task<bool> DeleteComment(int id,int userId,bool IsAdmin);
         Task<ResponseModel<CommentDto>> UpdateComment(UpdateCommentDto dto);
 
 
-        Task<ResponseModel<List<CommentDto>>> GetCommentsByProductId(int productId);
+        Task<ResponseModel<PagedResult<CommentDto>>> GetCommentsByProductId(int productId, int pageNumber, int pageSize);
         Task<ResponseModel<List<CommentDto>>> GetCommentsByUserId(int UserId);
         Task<ResponseModel<double>> GetAverageRatingByProductId(int productId);
     }
