@@ -50,9 +50,13 @@ namespace OnlineShop.Controllers
         public async Task<ResponseModel<PagedResult<CommentDto>>> GetCommentsByProductId(int productId, int pageNumber, int pageSize)
             => await _commentService.GetCommentsByProductId(productId, pageNumber, pageSize);
 
-        [HttpGet("GetByCustomerId")]
-        public async Task<ResponseModel<List<CommentDto>>> GetCommentsByUserId(int customerId)
-            => await _commentService.GetCommentsByUserId(customerId);
+        [Authorize]
+        [HttpGet("GetByUserId")]
+        public async Task<ResponseModel<PagedResult<CommentDto>>> GetCommentsByUserId(int pageNumber,int pageSize)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            return  await _commentService.GetCommentsByUserId(userId,pageNumber,pageSize);
+        }
         
         [HttpGet("GetAverageRating")]
         public async Task<ResponseModel<double>> GetAverageRatingByProductId(int productId)

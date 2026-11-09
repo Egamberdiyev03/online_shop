@@ -17,9 +17,8 @@ namespace Application.Interfaces
         Task<bool> DeleteComment(int id,int userId,bool IsAdmin);
         Task<ResponseModel<CommentDto>> UpdateComment(UpdateCommentDto dto);
 
-
         Task<ResponseModel<PagedResult<CommentDto>>> GetCommentsByProductId(int productId, int pageNumber, int pageSize);
-        Task<ResponseModel<List<CommentDto>>> GetCommentsByUserId(int UserId);
+        Task<ResponseModel<PagedResult<CommentDto>>> GetCommentsByUserId(int UserId,int pageNumber, int pageSize);
         Task<ResponseModel<double>> GetAverageRatingByProductId(int productId);
     }
 }

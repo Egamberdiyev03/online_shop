@@ -157,10 +157,24 @@ namespace Application.Services
             return new("Muvaffaqiyatli", HttpStatusCode.OK, paged);
         }
 
-        public async Task<ResponseModel<List<CommentDto>>> GetCommentsByUserId(int UserId)
+        public async Task<ResponseModel<PagedResult<CommentDto>>> GetCommentsByUserId(int UserId, int pageNumber, int pageSize )
         {
-            var comments = await _commentRepository.GetAsQueryable()
-               .Where(c => c.UserId == UserId)
+            if (pageNumber < 1) pageNumber = 1;
+            if (pageSize < 1) pageSize = 10;
+            if (pageSize > 50) pageSize = 50;
+
+
+            var query = _commentRepository.GetAsQueryable()
+               .AsNoTracking()
+               .Where(c => c.UserId == UserId);
+               
+            var totalCount = await query.CountAsync();
+
+            var comments = await query
+               .OrderByDescending(c => c.CreatedAt)
+               .ThenByDescending(c => c.Id)
+               .Skip((pageNumber - 1) * pageSize)
+               .Take(pageSize)
                .Select(c => new CommentDto
                {
                    Id = c.Id,
@@ -173,10 +187,15 @@ namespace Application.Services
                    StarRating = c.StarRating
                }).ToListAsync();
 
-            if (!comments.Any())
-                return new($"Bu userga tegishli commentlar topilmadi", HttpStatusCode.NotFound);
+            var paged = new PagedResult<CommentDto>
+            {
+                Items = comments,
+                TotalCount = totalCount,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
 
-            return new(comments);
+            return new(paged);
         }
 
         public async Task<ResponseModel<double>> GetAverageRatingByProductId(int productId)
