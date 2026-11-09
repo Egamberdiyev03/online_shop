@@ -1,0 +1,7 @@
+# Use this workspace to collaborate
+workspace:
+  id: 40bd5575-8798-4126-8eba-c6c5b0c5488e
+
+localResources:
+  specs:
+    - ../OnlineShop/obj/Debug/net8.0/EndpointInfo/OnlineShop.json

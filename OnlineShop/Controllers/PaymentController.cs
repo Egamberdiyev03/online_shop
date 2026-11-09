@@ -4,6 +4,7 @@ using Application.Interfaces;
 using Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace OnlineShop.Controllers
 {
@@ -38,6 +39,13 @@ namespace OnlineShop.Controllers
         
         [HttpPost("upload-receipt")]
         public async Task<ResponseModel<string>> UploadReceipt(IFormFile file)
-             => await _paymentService.UploadReceiptAsync(file);  
+             => await _paymentService.UploadReceiptAsync(file);
+
+        [HttpGet("get-by-user")]
+        public async Task<ResponseModel<PagedResult<PaymentDto>>> GetPaymentsByUserId(int pagenumber, int pagesize)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            return  await _paymentService.GetPaymentsByUserId(userId, pagenumber, pagesize);
+        }
     }
 }

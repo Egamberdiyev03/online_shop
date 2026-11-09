@@ -1,3 +1,5 @@
+using Application.DTOs.Order;
+using Application.DTOs.OrderItem;
 using Application.DTOs.Payment;
 using Application.Extentions;
 using Application.Interfaces;
@@ -224,6 +226,51 @@ namespace Application.Services
             var fileUrl = $"/Receipts/{uniqueFileName}";
 
             return new("Fayl muvaffaqiyatli yuklandi", HttpStatusCode.OK, fileUrl);
+        }
+
+        public async Task<ResponseModel<PagedResult<PaymentDto>>> GetPaymentsByUserId(int userId, int pageNumber, int pageSize)
+        {
+            if(pageNumber < 1) pageNumber = 1;
+            if(pageSize < 1) pageSize = 10;
+            if(pageSize > 50) pageSize = 50;
+
+            var query = _payRepo.GetAsQueryable()
+                .AsNoTracking()
+                .Where(p => p.Order.UserId == userId);
+
+            var totalCount = await query.CountAsync();
+
+            var payments = await query
+                .OrderByDescending(p => p.CreatedAt)
+                .ThenByDescending(p => p.Id)
+                .Select(s=> new PaymentDto
+                {
+                    Id = s.Id,
+                    OrderId = s.OrderId,
+                    Amount = s.Amount,
+                    Status = s.Status,
+                    ChekUrl = s.ChekUrl,
+                    PaymentMethod = s.PaymentMethod,
+                    TransactionNote = s.TransactionNote,
+                    CreatedAt = s.CreatedAt,
+                    ConfirmedAt = s.ConfirmedAt,
+                    RejectionReason = s.RejectionReason,
+                    ConfirmedByUserId = s.ConfirmedByUserId,
+                    BranchName = s.Order.CompanyBranch.Name,
+                    OrderCreatedAt = s.Order.CreatedAt
+                })
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var paged = new PagedResult<PaymentDto>
+            {
+                Items = payments,
+                TotalCount = totalCount,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
+            return new(paged);
         }
     }
 }

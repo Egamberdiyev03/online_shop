@@ -159,6 +159,7 @@ namespace Application.Services
                 .AsNoTracking()
                 .Include(c => c.OrderItems)
                 .ThenInclude(d => d.Product)
+                .Include(c => c.Payment)
                 .OrderByDescending(t=>t.CreatedAt)
                 .ThenByDescending(t => t.Id)
                 .Skip((pageNumber - 1) * pageSize)

@@ -13,12 +13,11 @@ namespace Application.Interfaces
     public interface IPaymentService
     {
         Task<ResponseModel<PaymentDto>> CreatePaymentAsync(CreatePaymentDto dto);
-
         Task<ResponseModel<PaymentDto>> ConfirmPaymentAsync(int paymentId, int adminId);
-
         Task<ResponseModel<PaymentDto>> GetPaymentByOrderIdAsync(int orderId, int userId = 0);
         Task<ResponseModel<List<PaymentDto>>> GetAllPaymentsAsync(PaymentStatus? status, int? branchId);
         Task<ResponseModel<PaymentDto>> RejectPaymentAsync(RejectPaymentDto dto, int adminId);
+        Task<ResponseModel<PagedResult<PaymentDto>>> GetPaymentsByUserId(int userId, int pageNumber, int pageSize);
 
         Task<ResponseModel<string>> UploadReceiptAsync(IFormFile file);
     }

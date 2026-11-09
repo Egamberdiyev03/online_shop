@@ -32,5 +32,8 @@ namespace Application.DTOs.Payment
 
         // Agar admin rad etsa, sababi
         public string? RejectionReason { get; set; }
+
+        public string? BranchName { get; set; }
+        public DateTime OrderCreatedAt { get; set; }
     }
 }

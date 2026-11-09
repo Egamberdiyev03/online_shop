@@ -1,4 +1,5 @@
 ﻿using Application.DTOs.OrderItem;
+using Application.DTOs.Payment;
 using Domain.Enums;
 using System;
 using System.Collections.Generic;
@@ -18,6 +19,7 @@ namespace Application.DTOs.Order
         public OrderStatus Status { get; set; }
 
         public List<OrderItemDto> OrderItems { get; set; }
+        public PaymentDto Payment { get; set; }
 
 
     }
