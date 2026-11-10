@@ -2,6 +2,8 @@ using Application.DTOs.Product;
 using Application.Extentions;
 using Application.Interfaces;
 using AutoMapper;
+using AutoMapper.Configuration.Annotations;
+using DataAccess.Filter;
 using DataAccess.Repositories;
 using Domain.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -46,50 +48,37 @@ namespace Application.Services
             return new(_mapper.Map<List<ProductDto>>(products));
         }
 
-        public async Task<ResponseModel<PagedResult<ProductDto>>> GetPagedProducts(
-            int pageNumber = 1, 
-            int pageSize = 12, 
-            string? search = null, 
-            int? categoryId = null, 
-            int? branchId = null)
-        {
-            if (pageNumber < 1) pageNumber = 1;
-            if (pageSize < 1) pageSize = 12;
+        public async Task<ResponseModel<PagedResult<ProductDto>>> GetPagedProducts(PagedQuery q)
+        {    
+            if(q.PageNumber < 1)  q.PageNumber = 1;
+            if (q.PageSize < 1)  q.PageSize = 12;
 
             var query = _productRepository.GetAsQueryable();
 
-            if (!string.IsNullOrWhiteSpace(search))
+            if (q.Filters != null && q.Filters.Any())
             {
-                var s = search.Trim().ToLower();
-                query = query.Where(p => p.Name.ToLower().Contains(s) || (p.Description != null && p.Description.ToLower().Contains(s)));
+                query = query.ApplyFilters(q.Filters);
             }
 
-            if (categoryId.HasValue && categoryId.Value > 0)
+            if(!string.IsNullOrWhiteSpace(q.SortBy))
             {
-                query = query.Where(p => p.CategoryId == categoryId.Value);
+                query = query.ApplySorting(q.SortBy, q.IsDescending);
+            }
+            else
+            {
+                query = query.OrderByDescending(p => p.Id);
             }
 
-            if (branchId.HasValue && branchId.Value > 0)
-            {
-                query = query.Where(p => p.CompanyBranchId == branchId.Value);
-            }
+            var paged = await query.ToPagedListAsync(q.PageNumber, q.PageSize);
 
-            var totalCount = await query.CountAsync();
-
-            var products = await query
-                .OrderByDescending(p => p.Id)
-                .Skip((pageNumber - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
-
-            var dtoList = _mapper.Map<List<ProductDto>>(products);
+            var items = _mapper.Map<List<ProductDto>>(paged.Items);
 
             var result = new PagedResult<ProductDto>
             {
-                Items = dtoList,
-                TotalCount = totalCount,
-                PageNumber = pageNumber,
-                PageSize = pageSize
+                Items = items,
+                TotalCount = paged.TotalCount,
+                PageNumber = paged.PageNumber,
+                PageSize = paged.PageSize
             };
 
             return new(result);

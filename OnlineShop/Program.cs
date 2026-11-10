@@ -26,7 +26,9 @@ builder.Services.AddCors(o => o.AddPolicy("Front", p => p
     .WithOrigins(
     "https://xalqbozor.uz",
     "http://localhost:4200")
-    .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
+    .AllowAnyHeader()
+    .AllowAnyMethod()
+    .AllowCredentials()));
 
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 builder.Services.AddAuthentication(options =>

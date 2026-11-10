@@ -29,13 +29,8 @@ namespace OnlineShop.Controllers
              => await _service.GetAll();
 
         [HttpGet("GetPaged")]
-        public async Task<ResponseModel<PagedResult<ProductDto>>> GetPagedProducts(
-            [FromQuery] int pageNumber = 1,
-            [FromQuery] int pageSize = 12,
-            [FromQuery] string? search = null,
-            [FromQuery] int? categoryId = null,
-            [FromQuery] int? branchId = null)
-             => await _service.GetPagedProducts(pageNumber, pageSize, search, categoryId, branchId);
+        public async Task<ResponseModel<PagedResult<ProductDto>>> GetPagedProducts([FromQuery] PagedQuery q)
+             => await _service.GetPagedProducts(q);
 
         [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpPut("Update")]
