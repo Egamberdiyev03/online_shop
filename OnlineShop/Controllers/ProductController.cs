@@ -15,7 +15,7 @@ namespace OnlineShop.Controllers
             _service = service;
         }
 
-        [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
+        [Authorize(Roles = "SuperAdmin,CompanyAdmin,BranchAdmin")]
         [HttpPost("Create")]
         public async Task<ProductDto> CreateProduct(CreateProductDto dto)
              => await _service.CreateProduct(dto);
