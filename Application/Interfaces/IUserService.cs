@@ -11,7 +11,7 @@ namespace Application.Interfaces
     public interface IUserService
     {
         Task<UserDto> CreateUser(CreateUserDto dto);
-        Task<List<UserDto>> GetAllUser();
+        Task<ResponseModel<PagedResult<UserDto>>> GetAllUser(PagedQuery filter);
         Task<ResponseModel<UserDto>> GetUserById(int id);
         Task<ResponseModel<UserDto>> UpdateUser(UpdateUserDto dto);
         Task<ResponseModel<bool>> DeleteUser(int id);
@@ -19,6 +19,6 @@ namespace Application.Interfaces
         Task<ResponseModel<bool>> RemoveCompanyAdmin(int userId);
         Task<ResponseModel<bool>> AssignBranchManager(int userId, int branchId);
         Task<ResponseModel<bool>> RemoveBranchManager(int userId);
-        Task<ResponseModel<List<UserDto>>> GetUsersByBranchId(int branchId);
+        Task<ResponseModel<PagedResult<UserDto>>> GetUsersByBranchId(int branchId, PagedQuery filter);
     }
 }

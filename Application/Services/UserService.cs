@@ -3,6 +3,7 @@ using Application.Extentions;
 using Application.Interfaces;
 using Application.Mapping;
 using AutoMapper;
+using DataAccess.Filter;
 using DataAccess.Repositories;
 using Domain.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -27,7 +28,6 @@ namespace Application.Services
             _mapper = mapper;
             _branchRepository = branchRepository;
         }
-
         public async Task<UserDto> CreateUser (CreateUserDto dto)
         {
             var user = _mapper.Map<User>(dto);
@@ -36,9 +36,25 @@ namespace Application.Services
             return _mapper.Map<UserDto>(user);   
         }
 
-        public async Task<List<UserDto>> GetAllUser ()
+        public async Task<ResponseModel<PagedResult<UserDto>>> GetAllUser (PagedQuery filter)
         {
-            var customers = await _repository.GetAsQueryable()
+            var query = _repository.GetAsQueryable().AsNoTracking();
+
+            if(filter.Filters != null && filter.Filters.Any())
+            {
+                query = query.ApplyFilters(filter.Filters);
+            }
+
+            if(!string.IsNullOrWhiteSpace(filter.SortBy))
+            {
+                query = query.ApplySorting(filter.SortBy, filter.IsDescending);
+            }
+            else
+            {
+                query = query.OrderByDescending(u => u.CreatedAt).ThenByDescending(u => u.Id);
+            }
+
+            var customers = await query
                 .Select(c => new UserDto
                 {
                     Id = c.Id,
@@ -52,9 +68,9 @@ namespace Application.Services
                     IsEmailConfirmed = c.IsEmailConfirmed,
                     CompanyId = c.CompanyId,
                     CompanyBranchId = c.CompanyBranchId
-                })
-                .ToListAsync();
-            return customers;
+                }).ToPagedListAsync(filter.PageNumber, filter.PageSize);
+
+            return new("Muvaffaqiyatli", HttpStatusCode.OK, customers);
         }
   
         public async Task<ResponseModel<UserDto>> GetUserById (int id)
@@ -158,7 +174,7 @@ namespace Application.Services
             return new(true);
         }
 
-        public async Task<ResponseModel<List<UserDto>>> GetUsersByBranchId(int branchId)
+        public async Task<ResponseModel<PagedResult<UserDto>>> GetUsersByBranchId(int branchId, PagedQuery filter)
         {
             var users = await _repository.GetAsQueryable()
                 .Where(u => u.CompanyBranchId == branchId)
@@ -175,10 +191,9 @@ namespace Application.Services
                     CompanyId = c.CompanyId,
                     CompanyBranchId = c.CompanyBranchId,
                     IsEmailConfirmed = c.IsEmailConfirmed
-                })
-                .ToListAsync();
+                }).ToPagedListAsync(filter.PageNumber, filter.PageSize);    
 
-            return new(users);
+            return new("Muvaffaqiyatli", HttpStatusCode.OK, users);
         }
     }
 }

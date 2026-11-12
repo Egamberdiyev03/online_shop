@@ -13,14 +13,12 @@ namespace Application.Interfaces
     public interface IOrderService 
     {
         Task<ResponseModel<bool>> CreateOrder(int UserId);
-        Task<List<OrderDto>> GetAllOrder();
+        Task<ResponseModel<PagedResult<OrderDto>>> GetAllOrder(PagedQuery filter);
         Task<ResponseModel<OrderDto>> GetOrderById(int id);
 
-
-        Task<ResponseModel<PagedResult<OrderDto>>> GetByOrderUserId(int userId,int pageSize,int pageNumber);
-        Task<ResponseModel<List<OrderDto>>> GetOrdersByBranchId(int branchId);
-        Task<ResponseModel<List<OrderDto>>> GetOrdersByStatus(OrderStatus status);
-        Task<ResponseModel<List<OrderDto>>> GetOrdersByDateRange(DateTime from, DateTime to);
+        Task<ResponseModel<PagedResult<OrderDto>>> GetByOrderUserId(int userId, PagedQuery filter);
+        Task<ResponseModel<PagedResult<OrderDto>>> GetOrdersByBranchId(int branchId, PagedQuery filter);
+        Task<ResponseModel<PagedResult<OrderDto>>> GetOrdersByDateRange(DateTime from, DateTime to,PagedQuery filter);
         Task<ResponseModel<bool>> UpdateOrderStatus(int orderId, OrderStatus status);
         Task<ResponseModel<bool>> CancelOrder(int orderId);
     }

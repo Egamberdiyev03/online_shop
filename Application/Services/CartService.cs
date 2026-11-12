@@ -2,6 +2,7 @@
 using Application.Extentions;
 using Application.Interfaces;
 using DataAccess.Database;
+using DataAccess.Filter;
 using DataAccess.Repositories;
 using Domain.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -60,17 +61,18 @@ namespace Application.Services
             });
         }
 
-        public async Task<ResponseModel<List<CartDto>>> GetAllCartsAsync()
+        public async Task<ResponseModel<PagedResult<CartDto>>> GetAllCartsAsync(PagedQuery filter)
         {
             var carts = await _cartRepository.GetAsQueryable()
+            .AsNoTracking() 
             .Select(c => new CartDto
             {
                 Id = c.Id,
                 UserId = c.UserId,
                 CreatedAt = c.CreatedAt
-            }).ToListAsync();
+            }).ToPagedListAsync(filter.PageNumber, filter.PageSize);
 
-            return new(carts);
+            return new("Muvaffaqiyatli", HttpStatusCode.OK, carts);
         }
 
         public async Task<ResponseModel<CartDto>> GetCartByIdAsync(int id)
@@ -95,7 +97,6 @@ namespace Application.Services
             
             return result;
         }
-
         public async Task<ResponseModel<bool>> AddItemToCartAsync(int userId, int productId, int quantity)
         {
             var cart = await _cartRepository.GetAsQueryable()

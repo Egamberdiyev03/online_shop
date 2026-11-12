@@ -50,10 +50,7 @@ namespace Application.Services
 
         public async Task<ResponseModel<PagedResult<ProductDto>>> GetPagedProducts(PagedQuery q)
         {    
-            if(q.PageNumber < 1)  q.PageNumber = 1;
-            if (q.PageSize < 1)  q.PageSize = 12;
-
-            var query = _productRepository.GetAsQueryable();
+            var query = _productRepository.GetAsQueryable().AsNoTracking();
 
             if (q.Filters != null && q.Filters.Any())
             {
@@ -69,29 +66,43 @@ namespace Application.Services
                 query = query.OrderByDescending(p => p.Id);
             }
 
-            var paged = await query.ToPagedListAsync(q.PageNumber, q.PageSize);
-
-            var items = _mapper.Map<List<ProductDto>>(paged.Items);
-
-            var result = new PagedResult<ProductDto>
+            var item = await query.Select(p => new ProductDto
             {
-                Items = items,
-                TotalCount = paged.TotalCount,
-                PageNumber = paged.PageNumber,
-                PageSize = paged.PageSize
-            };
+                Id = p.Id,
+                Name = p.Name,
+                Description = p.Description,
+                Price = p.Price,
+                CreatedAt = p.CreatedAt,
+                Image = p.Image,
+                Quantity = p.Quantity,
+                CompanyBranchId = p.CompanyBranchId,
+                CategoryId = p.CategoryId,
+                BranchName = p.CompanyBranch.Name,
+                AverageRating = p.Comments.Any() ? p.Comments.Average(c => c.StarRating) : 0,
+                CommentsCount = p.Comments.Count
+            }).ToPagedListAsync(q.PageNumber, q.PageSize);
 
-            return new(result);
+            return new("Muvaffaqiyatli", HttpStatusCode.OK, item);
         }
 
         public async Task<ResponseModel<ProductDto>> GetById (int id)
         {
-            var product = await _productRepository.GetByIdAsync(id);
+            var product = await _productRepository.GetAsQueryable()
+                .Include(p => p.CompanyBranch)
+                .Include(p => p.Comments)
+                .FirstOrDefaultAsync(p => p.Id == id);
 
             if (product == null)
                 return new($"Product {id} topilmadi", HttpStatusCode.NotFound);
 
-            return new(_mapper.Map<ProductDto>(product));
+            var dto = _mapper.Map<ProductDto>(product);
+            dto.BranchName = product.CompanyBranch?.Name;
+            dto.AverageRating = product.Comments?.Any() == true
+                ? product.Comments.Average(c => c.StarRating)
+                : 0;
+            dto.CommentsCount = product.Comments?.Count ?? 0;
+
+            return new(dto);
         }
 
         public async Task<ResponseModel<ProductDto>> UpdateProduct (UpdateProductDto dto)

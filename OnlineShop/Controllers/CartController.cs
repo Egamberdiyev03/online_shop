@@ -24,8 +24,8 @@ namespace OnlineShop.Controllers
         
         [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpGet("GetAll")] 
-        public async Task<ResponseModel<List<CartDto>>> Getall ()
-            => await _cartService.GetAllCartsAsync();
+        public async Task<ResponseModel<PagedResult<CartDto>>> Getall ([FromQuery] PagedQuery filter)
+            => await _cartService.GetAllCartsAsync(filter);
             
         [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpDelete("Delete")]

@@ -50,7 +50,7 @@ namespace OnlineShop.Controllers
         // BranchManager ham ko'ra oladi, lekin faqat o'z filiali buyurtmalarini
         [Authorize(Roles = "SuperAdmin,CompanyAdmin,BranchManager")]
         [HttpGet("GetAll")]
-        public async Task<ResponseModel<List<OrderDto>>> GetAllOrder()
+        public async Task<ResponseModel<PagedResult<OrderDto>>> GetAllOrder([FromQuery] PagedQuery filter)
         {
             var role = GetCurrentUserRole();
 
@@ -60,23 +60,23 @@ namespace OnlineShop.Controllers
                 var userBranchId = GetCurrentUserBranchId();
                 if (userBranchId.HasValue)
                 {
-                    return await _orderService.GetOrdersByBranchId(userBranchId.Value);
+                    return await _orderService.GetOrdersByBranchId(userBranchId.Value, filter);
                 }
                 return new("Filial topilmadi", HttpStatusCode.NotFound);
             }
 
-            return new(await _orderService.GetAllOrder());
+            return await _orderService.GetAllOrder(filter);
         }
 
         [Authorize]
         [HttpGet("GetOrderByUserId")]
-        public  async Task<ResponseModel<PagedResult<OrderDto>>> GetOrderByUserId(int pageSize, int pageNumber)
+        public  async Task<ResponseModel<PagedResult<OrderDto>>> GetOrderByUserId([FromQuery] PagedQuery filter)
         {
             var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(value, out var userId))
                 return new("Foydalanuvchi aniqlanmadi", HttpStatusCode.Unauthorized);
 
-            return  await  _orderService.GetByOrderUserId(userId, pageSize, pageNumber);
+            return  await  _orderService.GetByOrderUserId(userId, filter);
         }
 
         // BranchManager ham o'z filiali buyurtmalarini yangilay oladi
@@ -115,7 +115,7 @@ namespace OnlineShop.Controllers
         // BranchManager ham chaqira oladi, lekin faqat o'z filiali uchun
         [Authorize(Roles = "SuperAdmin,CompanyAdmin,BranchManager")]
         [HttpGet("GetOrdersByBranchId")]
-        public async Task<ResponseModel<List<OrderDto>>> GetOrdersByBranchId(int branchId)
+        public async Task<ResponseModel<PagedResult<OrderDto>>> GetOrdersByBranchId(int branchId, [FromQuery] PagedQuery filter)
         {
             var role = GetCurrentUserRole();
 
@@ -129,44 +129,12 @@ namespace OnlineShop.Controllers
                 }
             }
 
-            return await _orderService.GetOrdersByBranchId(branchId);
-        }
-
-        // BranchManager ham chaqira oladi, faqat o'z filiali uchun filtrlanadi
-        [Authorize(Roles = "SuperAdmin,CompanyAdmin,BranchManager")]
-        [HttpGet("GetOrdersByStatus")]
-        public async Task<ResponseModel<List<OrderDto>>> GetOrdersByStatus(OrderStatus status)
-        {
-            var role = GetCurrentUserRole();
-
-            // BranchManager uchun o'z filiali bo'yicha filtr
-            if (role == "BranchManager")
-            {
-                var userBranchId = GetCurrentUserBranchId();
-                if (userBranchId.HasValue)
-                {
-                    var branchOrders = await _orderService.GetOrdersByBranchId(userBranchId.Value);
-                    if (branchOrders.result != null)
-                    {
-                        var filtered = branchOrders.result
-                            .Where(o => o.Status == status)
-                            .ToList();
-
-                        return new ResponseModel<List<OrderDto>>(
-                            "Muvaffaqiyatli",
-                            HttpStatusCode.OK,
-                            filtered);
-                    }
-                }
-                return new("Filial ma'lumoti topilmadi.", HttpStatusCode.NotFound);
-            }
-
-            return await _orderService.GetOrdersByStatus(status);
+            return await _orderService.GetOrdersByBranchId(branchId, filter);
         }
 
         [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpGet("GetOrdersByDateRange")]
-        public async Task<ResponseModel<List<OrderDto>>> GetOrdersByDateRange(DateTime from, DateTime to)
-            => await _orderService.GetOrdersByDateRange(from, to);
+        public async Task<ResponseModel<PagedResult<OrderDto>>> GetOrdersByDateRange(DateTime from, DateTime to, [FromQuery] PagedQuery filter)
+            => await _orderService.GetOrdersByDateRange(from, to, filter);
     }
 }

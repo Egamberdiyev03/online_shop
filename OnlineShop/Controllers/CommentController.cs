@@ -29,8 +29,8 @@ namespace OnlineShop.Controllers
 
         [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpGet("GetAll")]
-        public async Task<List<CommentDto>> GetAllComment ()
-            => await  _commentService.GetAllComment();
+        public async Task<ResponseModel<PagedResult<CommentDto>>> GetAllComment ([FromQuery] PagedQuery filter)
+            => await  _commentService.GetAllComment(filter);
         
         [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpPut("Update")]
@@ -47,15 +47,15 @@ namespace OnlineShop.Controllers
         }
         
         [HttpGet("GetByProductId")]
-        public async Task<ResponseModel<PagedResult<CommentDto>>> GetCommentsByProductId(int productId, int pageNumber, int pageSize)
-            => await _commentService.GetCommentsByProductId(productId, pageNumber, pageSize);
+        public async Task<ResponseModel<PagedResult<CommentDto>>> GetCommentsByProductId(int productId,[FromQuery] PagedQuery filter)
+            => await _commentService.GetCommentsByProductId(productId, filter);
 
         [Authorize]
         [HttpGet("GetByUserId")]
-        public async Task<ResponseModel<PagedResult<CommentDto>>> GetCommentsByUserId(int pageNumber,int pageSize)
+        public async Task<ResponseModel<PagedResult<CommentDto>>> GetCommentsByUserId([FromQuery] PagedQuery filter)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            return  await _commentService.GetCommentsByUserId(userId,pageNumber,pageSize);
+            return  await _commentService.GetCommentsByUserId(userId, filter);
         }
         
         [HttpGet("GetAverageRating")]

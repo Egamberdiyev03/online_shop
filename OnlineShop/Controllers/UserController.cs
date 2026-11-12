@@ -27,8 +27,8 @@ namespace OnlineShop.Controllers
 
         [Authorize(Roles = "SuperAdmin,CompanyAdmin")]
         [HttpGet("GetAll")]
-        public async Task<List<UserDto>> GetAllUser()
-              => await _service.GetAllUser();
+        public async Task<ResponseModel<PagedResult<UserDto>>> GetAllUser([FromQuery] PagedQuery filter)
+              => await _service.GetAllUser(filter);
 
         [HttpPut("Update")]
         public async Task<ResponseModel<UserDto>> UpdateUser(UpdateUserDto dto)
@@ -60,7 +60,7 @@ namespace OnlineShop.Controllers
              => await _service.RemoveBranchManager(userId);
 
         [HttpGet("GetUsersByBranchId")]
-        public async Task<ResponseModel<List<UserDto>>> GetUsersByBranchId(int branchId)
-             => await _service.GetUsersByBranchId(branchId);
+        public async Task<ResponseModel<PagedResult<UserDto>>> GetUsersByBranchId(int branchId,[FromQuery] PagedQuery filter)
+             => await _service.GetUsersByBranchId(branchId, filter);
     }
 }

@@ -4,6 +4,7 @@ using Application.DTOs.Payment;
 using Application.Extentions;
 using Application.Interfaces;
 using AutoMapper;
+using DataAccess.Filter;
 using DataAccess.Repositories;
 using Domain.Entities;
 using Domain.Enums;
@@ -40,7 +41,6 @@ namespace Application.Services
             _mapper = mapper;
             _notifyService = notifyService;
         }
-
         public async Task<ResponseModel<PaymentDto>> CreatePaymentAsync(CreatePaymentDto dto)
         {
             var order = await _orderRepo.GetByIdAsync(dto.OrderId);
@@ -78,16 +78,7 @@ namespace Application.Services
 
             if (adminUsers.Any())
             {
-                await _notifyService.SendToUsersAsync(adminUsers, NotificationFactory.PaymentSucceededForBranch(order.Id, order.CompanyBranchId));//new NotificationRequest(
-                  /*  Type: NotificationType.PaymentSucceeded,
-                    Title: "Yangi to'lov cheki keldi",
-                    Body: $"#{order.Id} buyurtma uchun to'lov cheki yuborildi. Tasdiqlashingiz kutilmoqda.",
-                    EntityType: NotificationEntityType.Order,
-                    EntityId: order.Id,
-                    BranchId: order.CompanyBranchId,
-                    Priority: NotificationPriority.High,
-                    Link: "/orders"
-                ));*/
+                await _notifyService.SendToUsersAsync(adminUsers, NotificationFactory.PaymentSucceededForBranch(order.Id, order.CompanyBranchId));
             }
 
             var paymentDto = _mapper.Map<PaymentDto>(payment);
@@ -228,21 +219,27 @@ namespace Application.Services
             return new("Fayl muvaffaqiyatli yuklandi", HttpStatusCode.OK, fileUrl);
         }
 
-        public async Task<ResponseModel<PagedResult<PaymentDto>>> GetPaymentsByUserId(int userId, int pageNumber, int pageSize)
+        public async Task<ResponseModel<PagedResult<PaymentDto>>> GetPaymentsByUserId(int userId, PagedQuery filter)
         {
-            if(pageNumber < 1) pageNumber = 1;
-            if(pageSize < 1) pageSize = 10;
-            if(pageSize > 50) pageSize = 50;
-
             var query = _payRepo.GetAsQueryable()
                 .AsNoTracking()
                 .Where(p => p.Order.UserId == userId);
 
-            var totalCount = await query.CountAsync();
+            if(filter.Filters != null && filter.Filters.Any())
+            {
+                query = query.ApplyFilters(filter.Filters);
+            }
+
+            if(!string.IsNullOrWhiteSpace(filter.SortBy))
+            {
+                query = query.ApplySorting(filter.SortBy, filter.IsDescending);
+            }
+            else
+            {
+                query = query.OrderByDescending(p => p.CreatedAt).ThenByDescending(p => p.Id);
+            }
 
             var payments = await query
-                .OrderByDescending(p => p.CreatedAt)
-                .ThenByDescending(p => p.Id)
                 .Select(s=> new PaymentDto
                 {
                     Id = s.Id,
@@ -258,19 +255,9 @@ namespace Application.Services
                     ConfirmedByUserId = s.ConfirmedByUserId,
                     BranchName = s.Order.CompanyBranch.Name,
                     OrderCreatedAt = s.Order.CreatedAt
-                })
-                .Skip((pageNumber - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
+                }).ToPagedListAsync(filter.PageNumber, filter.PageSize);
 
-            var paged = new PagedResult<PaymentDto>
-            {
-                Items = payments,
-                TotalCount = totalCount,
-                PageNumber = pageNumber,
-                PageSize = pageSize
-            };
-            return new(paged);
+            return new("Muvaffaqiyatli", HttpStatusCode.OK, payments);
         }
     }
 }

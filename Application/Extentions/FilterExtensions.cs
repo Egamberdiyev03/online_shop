@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Application.Extentions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using System;
@@ -11,7 +12,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
-using Application.Extentions;
+using static System.Net.WebRequestMethods;
 
 namespace DataAccess.Filter
 {
@@ -34,11 +35,21 @@ namespace DataAccess.Filter
                 var propertyAccess = Expression.MakeMemberAccess(parameter, property);
                 Expression comparison;
 
-                if(property.PropertyType == typeof(string))
+                //if(property.PropertyType == typeof(string))
+                //{
+                //    var method = typeof(string).GetMethod("Contains", new[] { typeof(string) });
+                //    var value = Expression.Constant(filter.Value, typeof(string));
+                //    comparison = Expression.Call(propertyAccess, method!, value);
+                //}
+                if (property.PropertyType == typeof(string))
                 {
-                    var method = typeof(string).GetMethod("Contains", new[] { typeof(string) });
-                    var value = Expression.Constant(filter.Value, typeof(string));
-                    comparison = Expression.Call(propertyAccess, method!, value);
+                    var toLower = typeof(string).GetMethod("ToLower", Type.EmptyTypes)!;
+                    var contains = typeof(string).GetMethod("Contains", new[] { typeof(string) })!;
+
+                    var lowerProperty = Expression.Call(propertyAccess, toLower);
+                    var value = Expression.Constant(filter.Value.ToLower(), typeof(string));
+
+                    comparison = Expression.Call(lowerProperty, contains, value);
                 }
                 else
                 {
@@ -94,7 +105,14 @@ namespace DataAccess.Filter
 
         public static async Task<PagedResult<T>> ToPagedListAsync<T>(this IQueryable<T> query, int pageNumber, int pageSize)
         {
+            if (pageNumber < 1) pageNumber = 1;
+            if (pageSize < 1) pageSize = 10;
+            if (pageSize > 50) pageSize = 50;
+
             var totalCount = await query.CountAsync();
+
+            if (totalCount == 0)
+                return new PagedResult<T> { Items = new List<T>(), TotalCount = 0, PageNumber = pageNumber, PageSize = pageSize };
 
             var items = await query
                 .Skip((pageNumber - 1) * pageSize)

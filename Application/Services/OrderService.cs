@@ -4,10 +4,12 @@ using Application.Extentions;
 using Application.Interfaces;
 using AutoMapper;
 using DataAccess.Database;
+using DataAccess.Filter;
 using DataAccess.Repositories;
 using Domain.Entities;
 using Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.Design;
 using System.Net;
 using System.Security.AccessControl;
 //using Telegram.Bot.Types;
@@ -19,9 +21,9 @@ namespace Application.Services
         private readonly IRepository<Cart> _cartRepository;
         private readonly IRepository<Product> _productRepository;
         private readonly IRepository<CompanyBranch> _branchRepository;
+        private readonly IRepository<User> _userRepo; 
         private readonly INotificationService _notificationservice;
         private readonly INotificationRepository _notificationRepository;
-        private readonly IRepository<User> _userRepo; 
         private readonly IMapper _mapper;
         public OrderService
             (IRepository<Order> orderRepository,
@@ -53,6 +55,7 @@ namespace Application.Services
 
             if (cart == null)
                 return new($"Bu Userda faol savat topilmadi ", HttpStatusCode.NotFound);
+
             var items = cart.CartItems.ToList();
 
             if (!items.Any())
@@ -111,12 +114,28 @@ namespace Application.Services
             //await _notificationservice.SendToUsersAsync(branchAdmins, notificationRequestToBranchAdmin);
             return new(true);
         }
-        public async Task<List<OrderDto>> GetAllOrder ()
+        public async Task<ResponseModel<PagedResult<OrderDto>>> GetAllOrder(PagedQuery filter)
         {
-            var orders = await _orderRepository.GetAsQueryable().Select(c => new OrderDto
+            var query = _orderRepository.GetAsQueryable().AsNoTracking();
+
+            if(filter.Filters != null && filter.Filters.Any())
+            {
+                query = query.ApplyFilters(filter.Filters);
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.SortBy))
+            {
+                query = query.ApplySorting(filter.SortBy, filter.IsDescending);
+            }
+            else
+            {
+                query = query.OrderByDescending(t => t.CreatedAt).ThenByDescending(t => t.Id);
+            }
+
+            var items = await query.Select(c => new OrderDto
             {
                 Id = c.Id,
-                CompanyBranchId= c.CompanyBranchId,
+                CompanyBranchId = c.CompanyBranchId,
                 UserId = c.UserId,
                 Status = c.Status,
                 CreatedAt = c.CreatedAt,
@@ -128,9 +147,9 @@ namespace Application.Services
                     ProductName = o.Product.Name,
                     UnitPrice = o.UnitPrice
                 }).ToList()
-            }).ToListAsync();
+            }).ToPagedListAsync(filter.PageNumber, filter.PageSize);
 
-            return orders;
+            return new("Muvaffaqiyatli", HttpStatusCode.OK, items);
         }
         public async Task<ResponseModel<OrderDto>> GetOrderById(int id)
         {
@@ -144,85 +163,112 @@ namespace Application.Services
 
             return new(_mapper.Map<OrderDto>(order));
         }
-        public async Task<ResponseModel<PagedResult<OrderDto>>> GetByOrderUserId (int UserId,int pageSize,int pageNumber)
+        public async Task<ResponseModel<PagedResult<OrderDto>>> GetByOrderUserId (int UserId, PagedQuery filter)
         {
-            if (pageNumber < 1) pageNumber = 1;
-            if (pageSize < 1) pageSize = 10;
-            if (pageSize > 50) pageSize = 50;
-
             var query = _orderRepository.GetAsQueryable()
-                 .Where(c => c.UserId == UserId);
-
-            var totalCount = await query.CountAsync();
-
-            var orders =  await query
                 .AsNoTracking()
-                .Include(c => c.OrderItems)
-                .ThenInclude(d => d.Product)
-                .Include(c => c.Payment)
-                .OrderByDescending(t=>t.CreatedAt)
-                .ThenByDescending(t => t.Id)
-                .Skip((pageNumber - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
-
-            var items = _mapper.Map<List<OrderDto>>(orders);
-
-            var paged = new PagedResult<OrderDto>
+                .Where(c => c.UserId == UserId);
+            
+            if(filter.Filters != null && filter.Filters.Any())
             {
-                Items = items,
-                TotalCount = totalCount,
-                PageNumber = pageNumber,
-                PageSize = pageSize
-            };
+                query = query.ApplyFilters(filter.Filters);
+            }
 
-            return new("Muvaffaqiyatli", HttpStatusCode.OK, paged);
+            if(!string.IsNullOrWhiteSpace(filter.SortBy))
+            {
+                query = query.ApplySorting(filter.SortBy, filter.IsDescending);
+            }
+            else
+            {
+                query = query.OrderByDescending(t => t.CreatedAt).ThenByDescending(t => t.Id);
+            }
+
+            var items = await query.Select(c => new OrderDto
+            {
+                Id = c.Id,
+                CompanyBranchId = c.CompanyBranchId,
+                UserId = c.UserId,
+                Status = c.Status,
+                CreatedAt = c.CreatedAt,
+                TotalPrice = c.TotalPrice,
+                OrderItems = c.OrderItems.Select(o => new OrderItemDto
+                {
+                    ProductId = o.ProductId,
+                    Quantity = o.Quantity,
+                    ProductName = o.Product.Name,
+                    UnitPrice = o.UnitPrice
+                }).ToList()
+            }).ToPagedListAsync(filter.PageNumber, filter.PageSize);
+
+            return new("Muvaffaqiyatli", HttpStatusCode.OK, items);
         }
-        public async Task<ResponseModel<List<OrderDto>>> GetOrdersByBranchId(int branchId)
+        public async Task<ResponseModel<PagedResult<OrderDto>>> GetOrdersByBranchId(int branchId,PagedQuery filter)
         {
-            var orders = await _orderRepository.GetAsQueryable()
-             .Include(c => c.OrderItems)
-             .ThenInclude(d => d.Product)
-             .Where(c => c.CompanyBranchId == branchId)
-             .OrderByDescending(t => t.CreatedAt)
-             .ToListAsync();
+            var query = _orderRepository.GetAsQueryable()
+                .AsNoTracking()
+                .Where(c => c.CompanyBranchId == branchId);
 
-            if (orders == null || !orders.Any())
-                return new($"Bu branchga tegishli buyurtmalar topilmadi", HttpStatusCode.NotFound);
+            if(filter.Filters != null && filter.Filters.Any())
+            {
+                query = query.ApplyFilters(filter.Filters);
+            }
 
-            return new(_mapper.Map<List<OrderDto>>(orders));
+            if (!string.IsNullOrWhiteSpace(filter.SortBy))
+            {
+                query = query.ApplySorting(filter.SortBy, filter.IsDescending);
+            }
+            else
+            {
+                query = query.OrderByDescending(t => t.CreatedAt).ThenByDescending(t => t.Id);
+            }
+
+            var items = await query.Select(c => new OrderDto
+            {
+                Id = c.Id,
+                CompanyBranchId = c.CompanyBranchId,
+                UserId = c.UserId,
+                Status = c.Status,
+                CreatedAt = c.CreatedAt,
+                TotalPrice = c.TotalPrice,
+                OrderItems = c.OrderItems.Select(o => new OrderItemDto
+                {
+                    ProductId = o.ProductId,
+                    Quantity = o.Quantity,
+                    ProductName = o.Product.Name,
+                    UnitPrice = o.UnitPrice
+                }).ToList()
+            }).ToPagedListAsync(filter.PageNumber, filter.PageSize);
+           
+            return new("Muvaffaqiyatli", HttpStatusCode.OK, items);
         }
-        public async Task<ResponseModel<List<OrderDto>>> GetOrdersByStatus(OrderStatus status)
-        {
-            var orders = await _orderRepository.GetAsQueryable()
-              .Include(c => c.OrderItems)
-              .ThenInclude(d => d.Product)
-              .Where(c => c.Status==status)
-              .OrderByDescending(t => t.CreatedAt)
-              .ToListAsync();
-
-            if (orders == null || !orders.Any())
-                return new($"Bu statusga tegishli buyurtmalar topilmadi", HttpStatusCode.NotFound);
-
-            return new(_mapper.Map<List<OrderDto>>(orders));
-        }
-        public async Task<ResponseModel<List<OrderDto>>> GetOrdersByDateRange(DateTime from, DateTime to)
+        public async Task<ResponseModel<PagedResult<OrderDto>>> GetOrdersByDateRange(DateTime from, DateTime to,PagedQuery filter)
         {
             var uzbekistanTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Tashkent");
             from = TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(from, DateTimeKind.Unspecified), uzbekistanTimeZone);
             to = TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(to, DateTimeKind.Unspecified), uzbekistanTimeZone);
 
-            var orders = await _orderRepository.GetAsQueryable()
-                 .Include(c => c.OrderItems)
-                 .ThenInclude(d => d.Product)
-                 .Where(c => c.CreatedAt>=from && c.CreatedAt<=to)
-                 .OrderByDescending(t => t.CreatedAt)
-                 .ToListAsync();
+            var query = _orderRepository.GetAsQueryable()
+                .AsNoTracking()
+                .Where(c => c.CreatedAt >= from && c.CreatedAt <= to);
 
-            if (orders == null || !orders.Any())
-                return new($"Bu vaqt oraligida buyurtmalar topilmadi", HttpStatusCode.NotFound);
+            var items = await query.Select(c => new OrderDto
+            {
+                Id = c.Id,
+                CompanyBranchId = c.CompanyBranchId,
+                UserId = c.UserId,
+                Status = c.Status,
+                CreatedAt = c.CreatedAt,
+                TotalPrice = c.TotalPrice,
+                OrderItems = c.OrderItems.Select(o => new OrderItemDto
+                {
+                    ProductId = o.ProductId,
+                    Quantity = o.Quantity,
+                    ProductName = o.Product.Name,
+                    UnitPrice = o.UnitPrice
+                }).ToList()
+            }).ToPagedListAsync(filter.PageNumber, filter.PageSize);
 
-            return new(_mapper.Map<List<OrderDto>>(orders));
+            return new("Muvaffaqiyatli", HttpStatusCode.OK, items);
         }
         public async Task<ResponseModel<bool>> UpdateOrderStatus(int orderId, OrderStatus status)
         {

@@ -11,14 +11,14 @@ namespace Application.Interfaces
     public interface ICommentService
     {
         //CRUD
-        Task<List<CommentDto>> GetAllComment();
+        Task<ResponseModel<PagedResult<CommentDto>>> GetAllComment(PagedQuery filter);
         Task<ResponseModel<CommentDto>> GetCommentById(int id);
         Task<ResponseModel<CommentDto>> CreateComment(CreateCommentDto dto,int userId);
         Task<bool> DeleteComment(int id,int userId,bool IsAdmin);
         Task<ResponseModel<CommentDto>> UpdateComment(UpdateCommentDto dto);
 
-        Task<ResponseModel<PagedResult<CommentDto>>> GetCommentsByProductId(int productId, int pageNumber, int pageSize);
-        Task<ResponseModel<PagedResult<CommentDto>>> GetCommentsByUserId(int UserId,int pageNumber, int pageSize);
+        Task<ResponseModel<PagedResult<CommentDto>>> GetCommentsByProductId(int productId, PagedQuery filter);
+        Task<ResponseModel<PagedResult<CommentDto>>> GetCommentsByUserId(int UserId,PagedQuery filter);
         Task<ResponseModel<double>> GetAverageRatingByProductId(int productId);
     }
 }

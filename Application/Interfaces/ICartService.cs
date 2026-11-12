@@ -12,7 +12,7 @@ namespace Application.Interfaces
     public interface ICartService 
     {
         Task<ResponseModel<CartDto>> CreateCartAsync(CreateCartDto cartDto);
-        Task<ResponseModel<List<CartDto>>> GetAllCartsAsync();
+        Task<ResponseModel<PagedResult<CartDto>>> GetAllCartsAsync(PagedQuery filter);
         Task<ResponseModel<CartDto>> GetCartByIdAsync(int id);
         Task<bool> DeleteCartAsync(int id);
 

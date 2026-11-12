@@ -2,6 +2,7 @@
 using Application.Extentions;
 using Application.Interfaces;
 using AutoMapper;
+using DataAccess.Filter;
 using DataAccess.Repositories;
 using Domain.Entities;
 using Domain.Enums;
@@ -64,23 +65,36 @@ namespace Application.Services
 
             return new(_mapper.Map<CommentDto>(comment));
         }
-        public async Task<List<CommentDto>> GetAllComment()
+        public async Task<ResponseModel<PagedResult<CommentDto>>> GetAllComment(PagedQuery filter)
         {
-            var comments = await _commentRepository.GetAsQueryable().
-                Select(c => new CommentDto
-                {
-                    Id = c.Id,
-                    Content = c.Content,
-                    CreatedAt = c.CreatedAt,
-                    UserId = c.UserId,
-                    ProductId = c.ProductId,
-                    StarRating = c.StarRating,
-                    UserName = c.User.Name
-                }).ToListAsync();
+            var query = _commentRepository.GetAsQueryable().AsNoTracking();
 
-            if(comments==null || !comments.Any()) return new List<CommentDto>();
-            
-            return comments;
+            if (filter.Filters != null && filter.Filters.Any())
+            {
+                query = query.ApplyFilters(filter.Filters);
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.SortBy))
+            {
+                query = query.ApplySorting(filter.SortBy, filter.IsDescending);
+            }
+            else
+            {
+                query = query.OrderByDescending(c => c.CreatedAt).ThenByDescending(c => c.Id);
+            }
+
+            var items = await query.Select(c => new CommentDto
+            {
+                Id = c.Id,
+                Content = c.Content,
+                CreatedAt = c.CreatedAt,
+                UserId = c.UserId,
+                ProductId = c.ProductId,
+                StarRating = c.StarRating,
+                UserName = c.User.Name
+            }).ToPagedListAsync(filter.PageNumber, filter.PageSize);
+
+            return new("Muvaffaqiyatli", HttpStatusCode.OK, items);
         }
 
         public async Task<ResponseModel<CommentDto>> GetCommentById (int id)
@@ -91,7 +105,6 @@ namespace Application.Services
 
             return new(_mapper.Map<CommentDto>(comment));  
         }
-
 
         public async Task<bool> DeleteComment (int id,int userId,bool isAdmin)
         {
@@ -117,85 +130,72 @@ namespace Application.Services
             return new(_mapper.Map<CommentDto>(comment));
         }
 
-        public async Task<ResponseModel<PagedResult<CommentDto>>> GetCommentsByProductId(int productId, int pageNumber, int pageSize)
+        public async Task<ResponseModel<PagedResult<CommentDto>>> GetCommentsByProductId(int productId, PagedQuery filter)
         {
-            if (pageNumber < 1) pageNumber = 1;
-            if (pageSize < 1) pageSize = 10;
-            if (pageSize > 50) pageSize = 50;
-
             var query =  _commentRepository.GetAsQueryable()
                 .AsNoTracking()
                 .Where(c => c.ProductId == productId);
 
-
-            var totalCount = await query.CountAsync();
-
-            var comments = await query
-                .OrderByDescending(c => c.CreatedAt)
-                .ThenByDescending(c=>c.Id)
-                .Skip((pageNumber - 1) * pageSize)
-                .Take(pageSize)
-                .Select(c => new CommentDto
-                {
-                    Id = c.Id,
-                    ProductId = c.ProductId,
-                    UserId = c.UserId,
-                    UserName = c.User.Name,
-                    Content = c.Content,
-                    CreatedAt = c.CreatedAt,
-                    UpdatedAt = c.UpdatedAt,
-                    StarRating = c.StarRating
-                }).ToListAsync();
-
-            var paged = new PagedResult<CommentDto>
+            if(filter.Filters != null && filter.Filters.Any())
             {
-                Items = comments,
-                TotalCount = totalCount,
-                PageNumber = pageNumber,
-                PageSize = pageSize
-            };
-            return new("Muvaffaqiyatli", HttpStatusCode.OK, paged);
+                query = query.ApplyFilters(filter.Filters);
+            }
+
+            if(!string.IsNullOrWhiteSpace(filter.SortBy))
+            {
+                query = query.ApplySorting(filter.SortBy, filter.IsDescending);
+            }
+            else
+            {
+                query = query.OrderByDescending(c => c.CreatedAt).ThenByDescending(c => c.Id);
+            }
+
+            var items = await query.Select(c => new CommentDto
+            {
+                Id = c.Id,
+                Content = c.Content,
+                CreatedAt = c.CreatedAt,
+                UserId = c.UserId,
+                ProductId = c.ProductId,
+                StarRating = c.StarRating,
+                UserName = c.User.Name
+            }).ToPagedListAsync(filter.PageNumber, filter.PageSize);
+
+            return new("Muvaffaqiyatli", HttpStatusCode.OK, items);
         }
 
-        public async Task<ResponseModel<PagedResult<CommentDto>>> GetCommentsByUserId(int UserId, int pageNumber, int pageSize )
+        public async Task<ResponseModel<PagedResult<CommentDto>>> GetCommentsByUserId(int UserId, PagedQuery filter)
         {
-            if (pageNumber < 1) pageNumber = 1;
-            if (pageSize < 1) pageSize = 10;
-            if (pageSize > 50) pageSize = 50;
-
-
             var query = _commentRepository.GetAsQueryable()
                .AsNoTracking()
                .Where(c => c.UserId == UserId);
                
-            var totalCount = await query.CountAsync();
-
-            var comments = await query
-               .OrderByDescending(c => c.CreatedAt)
-               .ThenByDescending(c => c.Id)
-               .Skip((pageNumber - 1) * pageSize)
-               .Take(pageSize)
-               .Select(c => new CommentDto
-               {
-                   Id = c.Id,
-                   ProductId = c.ProductId,
-                   UserId = c.UserId,
-                   UserName = c.User.Name,
-                   Content = c.Content,
-                   CreatedAt = c.CreatedAt,
-                   UpdatedAt = c.UpdatedAt,
-                   StarRating = c.StarRating
-               }).ToListAsync();
-
-            var paged = new PagedResult<CommentDto>
+           if(filter.Filters != null && filter.Filters.Any())
             {
-                Items = comments,
-                TotalCount = totalCount,
-                PageNumber = pageNumber,
-                PageSize = pageSize
-            };
+                query = query.ApplyFilters(filter.Filters);
+            }
 
-            return new(paged);
+            if(!string.IsNullOrWhiteSpace(filter.SortBy))
+            {
+                query = query.ApplySorting(filter.SortBy, filter.IsDescending);
+            }
+            else
+            {
+                query = query.OrderByDescending(c => c.CreatedAt).ThenByDescending(c => c.Id);
+            }
+
+            var items = await query.Select(c => new CommentDto
+            {
+                Id = c.Id,
+                Content = c.Content,
+                CreatedAt = c.CreatedAt,
+                UserId = c.UserId,
+                ProductId = c.ProductId,
+                StarRating = c.StarRating,
+                UserName = c.User.Name
+            }).ToPagedListAsync(filter.PageNumber, filter.PageSize);    
+
+            return new("Muvaffaqiyatli", HttpStatusCode.OK, items);
         }
 
         public async Task<ResponseModel<double>> GetAverageRatingByProductId(int productId)

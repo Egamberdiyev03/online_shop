@@ -16,8 +16,12 @@ namespace Application.DTOs.Product
         public DateTime CreatedAt { get; set; }
         public string Image  { get; set; }
         public int CompanyBranchId { get; set; }
+        public string? BranchName { get; set; }
 
         public int Quantity { get; set; } = 0;
-        // public int CreatedBy { get; set; }
+
+        // Rating & Reviews
+        public double AverageRating { get; set; } = 0;
+        public int CommentsCount { get; set; } = 0;
     }
 }

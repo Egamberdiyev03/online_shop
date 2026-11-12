@@ -42,10 +42,10 @@ namespace OnlineShop.Controllers
              => await _paymentService.UploadReceiptAsync(file);
 
         [HttpGet("get-by-user")]
-        public async Task<ResponseModel<PagedResult<PaymentDto>>> GetPaymentsByUserId(int pagenumber, int pagesize)
+        public async Task<ResponseModel<PagedResult<PaymentDto>>> GetPaymentsByUserId([FromQuery] PagedQuery filter)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            return  await _paymentService.GetPaymentsByUserId(userId, pagenumber, pagesize);
+            return  await _paymentService.GetPaymentsByUserId(userId, filter);
         }
     }
 }
